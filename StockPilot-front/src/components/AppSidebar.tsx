@@ -51,6 +51,7 @@ type AppSidebarProps = {
   isCollapsed: boolean
   onClose: () => void
   onToggleCollapse: () => void
+  onLogout: () => void
   userName: string
   userRole: string
   userInitials: string
@@ -61,6 +62,7 @@ export function AppSidebar({
   isCollapsed,
   onClose,
   onToggleCollapse,
+  onLogout,
   userName,
   userRole,
   userInitials,
@@ -141,6 +143,7 @@ export function AppSidebar({
             type="button"
             className="sidebar-logout-btn"
             aria-label="Se déconnecter"
+            onClick={onLogout}
           >
             <LogOut size={15} strokeWidth={1.75} />
           </button>

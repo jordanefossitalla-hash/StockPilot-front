@@ -5,11 +5,10 @@ import { AppHeader } from "../components/AppHeader"
 import { AppSidebar } from "../components/AppSidebar"
 import { BottomNav } from "../components/BottomNav"
 import { useTheme } from "../hooks/useTheme"
+import { useAuthStore } from "../store/authStore"
 import { getInitials } from "../utils/getInitials"
 
 const COLLAPSE_KEY = "sp-sidebar-collapsed"
-const CURRENT_USER_NAME = "Admin User"
-const CURRENT_USER_ROLE = "Administrateur"
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Tableau de bord",
@@ -21,6 +20,22 @@ const PAGE_TITLES: Record<string, string> = {
   "/settings": "Paramètres",
 }
 
+function resolvePageTitle(pathname: string) {
+  if (pathname === "/clients/new") {
+    return "Ajouter client"
+  }
+
+  if (/^\/clients\/[^/]+\/edit$/.test(pathname)) {
+    return "Modifier client"
+  }
+
+  if (/^\/clients\/[^/]+$/.test(pathname)) {
+    return "Detail client"
+  }
+
+  return PAGE_TITLES[pathname] ?? "StockPilot"
+}
+
 export function MainLayout() {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -28,12 +43,13 @@ export function MainLayout() {
     () => localStorage.getItem(COLLAPSE_KEY) === "true",
   )
   const { theme, toggleTheme } = useTheme()
+  const user = useAuthStore((state) => state.user)
+  const logout = useAuthStore((state) => state.logout)
+  const currentUserName = user?.name ?? "Utilisateur"
+  const currentUserRole = user?.role ?? "Utilisateur"
 
-  const title = useMemo(
-    () => PAGE_TITLES[location.pathname] ?? "StockPilot",
-    [location.pathname],
-  )
-  const userInitials = useMemo(() => getInitials(CURRENT_USER_NAME), [])
+  const title = useMemo(() => resolvePageTitle(location.pathname), [location.pathname])
+  const userInitials = useMemo(() => getInitials(currentUserName), [currentUserName])
 
   function handleToggleCollapse() {
     setSidebarCollapsed((prev) => {
@@ -52,9 +68,10 @@ export function MainLayout() {
         isCollapsed={sidebarCollapsed}
         onClose={() => setSidebarOpen(false)}
         onToggleCollapse={handleToggleCollapse}
-        userName={CURRENT_USER_NAME}
-        userRole={CURRENT_USER_ROLE}
+        userName={currentUserName}
+        userRole={currentUserRole}
         userInitials={userInitials}
+        onLogout={logout}
       />
 
       <div className="app-body">
