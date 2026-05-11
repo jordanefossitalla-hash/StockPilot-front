@@ -16,6 +16,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/clients": "Clients",
   "/orders": "Commandes",
   "/products": "Produits",
+  "/categories": "Categories",
+  "/stock": "Etat du stock",
+  "/suppliers": "Fournisseurs",
   "/reports": "Rapports",
   "/settings": "Paramètres",
 }
@@ -25,12 +28,68 @@ function resolvePageTitle(pathname: string) {
     return "Ajouter client"
   }
 
+  if (pathname === "/products/new") {
+    return "Ajouter produit"
+  }
+
+  if (pathname === "/categories/new") {
+    return "Ajouter categorie"
+  }
+
+  if (pathname === "/suppliers/new") {
+    return "Ajouter fournisseur"
+  }
+
   if (/^\/clients\/[^/]+\/edit$/.test(pathname)) {
     return "Modifier client"
   }
 
   if (/^\/clients\/[^/]+$/.test(pathname)) {
     return "Detail client"
+  }
+
+  if (/^\/products\/[^/]+\/edit$/.test(pathname)) {
+    return "Modifier produit"
+  }
+
+  if (/^\/products\/[^/]+$/.test(pathname)) {
+    return "Detail produit"
+  }
+
+  if (/^\/categories\/[^/]+\/edit$/.test(pathname)) {
+    return "Modifier categorie"
+  }
+
+  if (/^\/suppliers\/[^/]+\/edit$/.test(pathname)) {
+    return "Modifier fournisseur"
+  }
+
+  if (/^\/suppliers\/[^/]+$/.test(pathname)) {
+    return "Detail fournisseur"
+  }
+
+  if (pathname === "/stock/in") {
+    return "Entree stock"
+  }
+
+  if (pathname === "/stock/out") {
+    return "Sortie stock"
+  }
+
+  if (pathname === "/stock/history") {
+    return "Historique stock"
+  }
+
+  if (pathname === "/settings/profile") {
+    return "Profil utilisateur"
+  }
+
+  if (pathname === "/settings/shop") {
+    return "Parametres boutique"
+  }
+
+  if (pathname === "/settings/users") {
+    return "Gestion utilisateurs"
   }
 
   return PAGE_TITLES[pathname] ?? "StockPilot"

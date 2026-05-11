@@ -18,6 +18,11 @@ export const clientFormSchema = z.object({
     }),
   address: z.string().max(140, "Adresse trop longue").optional().or(z.literal("")),
   status: z.enum(["active", "blocked"]),
+  initialBalance: z
+    .number({ message: "Le solde initial est obligatoire" })
+    .finite("Le solde initial est invalide")
+    .min(-1_000_000_000, "Solde initial trop faible")
+    .max(1_000_000_000, "Solde initial trop eleve"),
 })
 
 export type ClientFormValues = z.infer<typeof clientFormSchema>

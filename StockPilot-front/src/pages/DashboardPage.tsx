@@ -1,4 +1,5 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react"
+import { useEffect, useState } from "react"
 import {
   Area,
   AreaChart,
@@ -45,7 +46,49 @@ function formatMetricValue(label: string, value: number) {
   return numberFormatter.format(value)
 }
 
+function getStockSegmentColor(name: string) {
+  if (name === "Disponible") {
+    return "#3b82f6"
+  }
+
+  if (name === "Bas stock") {
+    return "#f59e0b"
+  }
+
+  return "#ef4444"
+}
+
+function formatMonthTick(month: string, isMobile: boolean) {
+  if (!isMobile) {
+    return month
+  }
+
+  return month.slice(0, 3)
+}
+
 export function DashboardPage() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") {
+      return false
+    }
+
+    return window.matchMedia("(max-width: 640px)").matches
+  })
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    const media = window.matchMedia("(max-width: 640px)")
+    const listener = (event: MediaQueryListEvent) => setIsMobile(event.matches)
+
+    setIsMobile(media.matches)
+    media.addEventListener("change", listener)
+
+    return () => media.removeEventListener("change", listener)
+  }, [])
+
   return (
     <div className="page dashboard-page">
       <section className="metrics-grid" aria-label="Widgets metiers">
@@ -81,17 +124,24 @@ export function DashboardPage() {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={monthlyPerformance}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis dataKey="month" stroke="var(--color-text-muted)" />
+                <XAxis
+                  dataKey="month"
+                  stroke="var(--color-text-muted)"
+                  tick={{ fontSize: isMobile ? 11 : 12 }}
+                  interval={0}
+                />
                 <YAxis
                   yAxisId="left"
                   stroke="var(--color-text-muted)"
                   tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+                  hide={isMobile}
                 />
                 <YAxis
                   yAxisId="right"
                   orientation="right"
                   stroke="var(--color-text-muted)"
                   tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+                  hide={isMobile}
                 />
                 <Tooltip
                   formatter={(value) =>
@@ -103,14 +153,14 @@ export function DashboardPage() {
                     borderRadius: "12px",
                   }}
                 />
-                <Legend />
+                {!isMobile ? <Legend /> : null}
                 <Bar
                   yAxisId="left"
                   dataKey="sales"
                   name="Ventes"
                   fill="var(--color-brand)"
                   radius={[6, 6, 0, 0]}
-                  barSize={24}
+                  barSize={isMobile ? 16 : 24}
                 />
                 <Line
                   yAxisId="right"
@@ -135,8 +185,13 @@ export function DashboardPage() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={operationsEvolution}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis dataKey="month" stroke="var(--color-text-muted)" />
-                <YAxis stroke="var(--color-text-muted)" />
+                <XAxis
+                  dataKey="month"
+                  stroke="var(--color-text-muted)"
+                  tick={{ fontSize: isMobile ? 11 : 12 }}
+                  interval={0}
+                />
+                <YAxis stroke="var(--color-text-muted)" hide={isMobile} />
                 <Tooltip
                   formatter={(value, name) => {
                     const numericValue = Number(value ?? 0)
@@ -151,7 +206,7 @@ export function DashboardPage() {
                     borderRadius: "12px",
                   }}
                 />
-                <Legend />
+                {!isMobile ? <Legend /> : null}
                 <Area
                   type="monotone"
                   dataKey="clientDebt"
@@ -173,7 +228,7 @@ export function DashboardPage() {
                   dataKey="stock"
                   name="Stock"
                   stroke="var(--color-brand)"
-                  strokeWidth={2.5}
+                  strokeWidth={isMobile ? 2 : 2.5}
                   dot={false}
                 />
               </AreaChart>
@@ -186,35 +241,44 @@ export function DashboardPage() {
             <h3>Statistiques stock</h3>
             <p>Repartition produits disponible / alerte / rupture</p>
           </div>
-          <div className="chart-box small">
+          <div className="chart-box small client-evolution-chart">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={stockDistribution}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={56}
-                  outerRadius={86}
+                  innerRadius={isMobile ? 40 : 56}
+                  outerRadius={isMobile ? 68 : 86}
                   paddingAngle={3}
                 >
                   {stockDistribution.map((entry) => (
                     <Cell
                       key={entry.name}
-                      fill={
-                        entry.name === "Disponible"
-                          ? "#3b82f6"
-                          : entry.name === "Bas stock"
-                            ? "#f59e0b"
-                            : "#ef4444"
-                      }
+                      fill={getStockSegmentColor(entry.name)}
                     />
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => `${Number(value ?? 0)}%`} />
-                <Legend />
+                {!isMobile ? <Legend /> : null}
               </PieChart>
             </ResponsiveContainer>
           </div>
+          {isMobile ? (
+            <ul className="chart-mobile-legend" aria-label="Legende statistiques stock">
+              {stockDistribution.map((entry) => (
+                <li key={entry.name}>
+                  <span
+                    className="chart-mobile-legend-dot"
+                    style={{ backgroundColor: getStockSegmentColor(entry.name) }}
+                    aria-hidden="true"
+                  />
+                  <span>{entry.name}</span>
+                  <strong>{entry.value}%</strong>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </article>
 
         <article className="chart-card">
@@ -224,24 +288,42 @@ export function DashboardPage() {
           </div>
           <div className="chart-box small">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={operationsEvolution}>
+              <ComposedChart
+                data={operationsEvolution}
+                margin={{
+                  top: 8,
+                  right: isMobile ? 8 : 16,
+                  left: isMobile ? 2 : 8,
+                  bottom: isMobile ? 36 : 8,
+                }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis dataKey="month" stroke="var(--color-text-muted)" />
-                <YAxis stroke="var(--color-text-muted)" />
+                <XAxis
+                  dataKey="month"
+                  stroke="var(--color-text-muted)"
+                  tick={{ fontSize: isMobile ? 10 : 12 }}
+                  tickFormatter={(value) => formatMonthTick(String(value ?? ""), isMobile)}
+                  tickMargin={isMobile ? 12 : 6}
+                  height={isMobile ? 52 : 30}
+                  interval={isMobile ? "preserveStartEnd" : 0}
+                  minTickGap={isMobile ? 16 : 8}
+                />
+                <YAxis stroke="var(--color-text-muted)" hide={isMobile} />
                 <Tooltip />
-                <Legend />
+                {!isMobile ? <Legend /> : null}
                 <Bar
                   dataKey="newClients"
                   name="Nouveaux clients"
                   fill="var(--color-brand)"
                   radius={[6, 6, 0, 0]}
+                  barSize={isMobile ? 16 : 24}
                 />
                 <Line
                   type="monotone"
                   dataKey="suppliers"
                   name="Fournisseurs actifs"
                   stroke="var(--color-success)"
-                  strokeWidth={2.5}
+                  strokeWidth={isMobile ? 2 : 2.5}
                 />
               </ComposedChart>
             </ResponsiveContainer>

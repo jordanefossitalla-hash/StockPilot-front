@@ -24,6 +24,7 @@ export function ClientCreatePage() {
       email: "",
       address: "",
       status: "active",
+      initialBalance: 0,
     },
   })
 
@@ -81,6 +82,17 @@ export function ClientCreatePage() {
               <option value="blocked">Bloque</option>
             </select>
             {errors.status ? <small>{errors.status.message}</small> : null}
+          </label>
+
+          <label className="field-block">
+            <span>Solde initial (FCFA)</span>
+            <input
+              type="number"
+              step={1000}
+              placeholder="Ex: 0, 50000 ou -25000"
+              {...register("initialBalance", { valueAsNumber: true })}
+            />
+            {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
           </label>
 
           <label className="field-block field-block-full">

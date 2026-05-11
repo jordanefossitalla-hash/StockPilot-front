@@ -28,6 +28,7 @@ export function ClientEditPage() {
       email: client?.email ?? "",
       address: client?.address ?? "",
       status: client?.status ?? "active",
+      initialBalance: client?.debtTotal ?? 0,
     },
   })
 
@@ -83,6 +84,16 @@ export function ClientEditPage() {
               <option value="blocked">Bloque</option>
             </select>
             {errors.status ? <small>{errors.status.message}</small> : null}
+          </label>
+
+          <label className="field-block">
+            <span>Solde initial (FCFA)</span>
+            <input
+              type="number"
+              step={1000}
+              {...register("initialBalance", { valueAsNumber: true })}
+            />
+            {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
           </label>
 
           <label className="field-block field-block-full">

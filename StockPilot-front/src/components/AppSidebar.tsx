@@ -1,5 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  Archive,
+  Boxes,
   ChevronLeft,
   ChevronRight,
   FileBarChart2,
@@ -9,6 +11,7 @@ import {
   Settings,
   ShoppingCart,
   TrendingUp,
+  Truck,
   Users,
 } from "lucide-react"
 import { NavLink } from "react-router-dom"
@@ -35,6 +38,9 @@ const navGroups: NavGroup[] = [
       { to: "/clients", label: "Clients", icon: Users },
       { to: "/orders", label: "Commandes", icon: ShoppingCart, badge: 4 },
       { to: "/products", label: "Produits", icon: Package },
+      { to: "/categories", label: "Categories", icon: Boxes },
+      { to: "/stock", label: "Stock", icon: Archive },
+      { to: "/suppliers", label: "Fournisseurs", icon: Truck },
     ],
   },
   {

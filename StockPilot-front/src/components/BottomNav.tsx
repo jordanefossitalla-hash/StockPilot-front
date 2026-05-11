@@ -1,7 +1,7 @@
 import {
+  Boxes,
   LayoutDashboard,
   Package,
-  ShoppingCart,
   TrendingUp,
   Users,
 } from "lucide-react"
@@ -11,8 +11,8 @@ const items = [
   { to: "/", label: "Accueil", icon: LayoutDashboard },
   { to: "/sales", label: "Ventes", icon: TrendingUp },
   { to: "/clients", label: "Clients", icon: Users },
-  { to: "/orders", label: "Commandes", icon: ShoppingCart },
   { to: "/products", label: "Produits", icon: Package },
+  { to: "/categories", label: "Categories", icon: Boxes },
 ]
 
 export function BottomNav() {
