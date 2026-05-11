@@ -12,7 +12,7 @@ const items = [
   { to: "/sales", label: "Ventes", icon: TrendingUp },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/products", label: "Produits", icon: Package },
-  { to: "/categories", label: "Categories", icon: Boxes },
+  { to: "/categories", label: "Catégories", icon: Boxes },
 ]
 
 export function BottomNav() {

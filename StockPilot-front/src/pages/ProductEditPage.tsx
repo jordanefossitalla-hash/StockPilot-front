@@ -46,13 +46,13 @@ export function ProductEditPage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Modifier produit</h2>
-          <p className="page-subtitle">Mise a jour de la fiche {product.name}.</p>
+          <p className="page-subtitle">Mise à jour de la fiche {product.name}.</p>
         </div>
 
         <div className="clients-actions">
           <Link to="/products" className="btn btn-ghost">
             <ArrowLeft size={16} />
-            Retour a la liste
+            Retour à la liste
           </Link>
         </div>
       </div>
@@ -66,7 +66,7 @@ export function ProductEditPage() {
           </label>
 
           <label className="field-block">
-            <span>Categorie *</span>
+            <span>Catégorie *</span>
             <select {...register("category")}>
               <option value="informatique">Informatique</option>
               <option value="electromenager">Electromenager</option>
@@ -77,7 +77,7 @@ export function ProductEditPage() {
           </label>
 
           <label className="field-block">
-            <span>Quantite *</span>
+            <span>Quantité *</span>
             <input type="number" min={0} {...register("quantity", { valueAsNumber: true })} />
             {errors.quantity ? <small>{errors.quantity.message}</small> : null}
           </label>
@@ -108,11 +108,11 @@ export function ProductEditPage() {
             Liste produits
           </Link>
           <Link to={`/products/${product.id}`} className="btn btn-ghost">
-            Retour detail
+            Retour au détail
           </Link>
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
             <Save size={16} />
-            {isSubmitting ? "Mise a jour..." : "Sauvegarder"}
+            {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>
         </div>
       </form>

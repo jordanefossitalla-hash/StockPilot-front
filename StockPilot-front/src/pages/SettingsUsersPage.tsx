@@ -257,7 +257,7 @@ export function SettingsUsersPage() {
                 </button>
                 <button type="submit" className="btn btn-primary">
                   <ShieldCheck size={16} />
-                  Creer utilisateur
+                  Créer utilisateur
                 </button>
               </div>
             </form>

@@ -3,10 +3,10 @@ import { Link } from "react-router-dom"
 export function NotFoundPage() {
   return (
     <section className="page-section">
-      <h2>Page not found</h2>
-      <p className="page-subtitle">The requested page does not exist.</p>
+      <h2>Page introuvable</h2>
+      <p className="page-subtitle">La page demandee n'existe pas.</p>
       <Link to="/" className="link-btn">
-        Return to dashboard
+        Retour au tableau de bord
       </Link>
     </section>
   )

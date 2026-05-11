@@ -56,9 +56,9 @@ export function StockStatusPage() {
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Etat du stock</h2>
+          <h2 className="page-title">État du stock</h2>
           <p className="page-subtitle">
-            Vue globale: stock faible, rupture et quantite disponible.
+            Vue globale: stock faible, rupture et quantité disponible.
           </p>
         </div>
       </div>
@@ -70,7 +70,7 @@ export function StockStatusPage() {
           <Search size={16} />
           <input
             type="search"
-            placeholder="Rechercher par produit, code ou categorie"
+            placeholder="Rechercher par produit, code ou catégorie"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
@@ -107,11 +107,11 @@ export function StockStatusPage() {
           <thead>
             <tr>
               <th>Produit</th>
-              <th>Categorie</th>
-              <th>Qte disponible</th>
+              <th>Catégorie</th>
+              <th>Qté disponible</th>
               <th>Seuil</th>
               <th>Statut</th>
-              <th>Mise a jour</th>
+              <th>Mise à jour</th>
             </tr>
           </thead>
           <tbody>
@@ -141,7 +141,7 @@ export function StockStatusPage() {
             {currentPageItems.length === 0 ? (
               <tr>
                 <td colSpan={6} className="clients-empty-row">
-                  Aucun element de stock trouve.
+                  Aucun élément de stock trouvé.
                 </td>
               </tr>
             ) : null}
@@ -166,11 +166,11 @@ export function StockStatusPage() {
 
               <div className="client-mobile-grid">
                 <p>
-                  <span>Categorie</span>
+                  <span>Catégorie</span>
                   <strong>{item.category}</strong>
                 </p>
                 <p>
-                  <span>Qte disponible</span>
+                  <span>Qté disponible</span>
                   <strong>{item.quantityAvailable}</strong>
                 </p>
                 <p>
@@ -178,7 +178,7 @@ export function StockStatusPage() {
                   <strong>{item.lowThreshold}</strong>
                 </p>
                 <p>
-                  <span>Mise a jour</span>
+                  <span>Mise à jour</span>
                   <strong>{formatDate(item.updatedAt)}</strong>
                 </p>
               </div>
@@ -189,7 +189,7 @@ export function StockStatusPage() {
         {currentPageItems.length === 0 ? (
           <article className="client-mobile-card">
             <p className="clients-empty-row">
-              <AlertTriangle size={14} /> Aucun element de stock trouve.
+              <AlertTriangle size={14} /> Aucun élément de stock trouvé.
             </p>
           </article>
         ) : null}
@@ -202,7 +202,7 @@ export function StockStatusPage() {
           onClick={() => setPage((current) => Math.max(1, current - 1))}
           disabled={pageSafe === 1}
         >
-          Precedent
+          Précédent
         </button>
 
         <div className="clients-pagination-pages">

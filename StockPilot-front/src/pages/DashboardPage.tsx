@@ -107,7 +107,7 @@ export function DashboardPage() {
                 <ArrowDownRight size={14} />
               )}
               {metric.delta > 0 ? "+" : ""}
-              {metric.delta.toFixed(1)}% vs mois precedent
+              {metric.delta.toFixed(1)}% vs mois précédent
             </p>
             <span className={`metric-accent accent-${metric.variant}`} />
           </article>

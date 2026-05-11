@@ -57,14 +57,14 @@ export function CategoriesPage() {
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Categories</h2>
+          <h2 className="page-title">Catégories</h2>
           <p className="page-subtitle">Organisation du catalogue produit.</p>
         </div>
 
         <div className="clients-actions">
           <Link className="btn btn-primary" to="/categories/new">
             <Plus size={16} />
-            Ajouter categorie
+            Ajouter catégorie
           </Link>
         </div>
       </div>
@@ -109,10 +109,10 @@ export function CategoriesPage() {
         <table className="clients-table">
           <thead>
             <tr>
-              <th>Categorie</th>
+              <th>Catégorie</th>
               <th>Description</th>
               <th>Produits</th>
-              <th>Creation</th>
+              <th>Création</th>
               <th>Statut</th>
               <th>Actions</th>
             </tr>
@@ -165,7 +165,7 @@ export function CategoriesPage() {
             {currentPageCategories.length === 0 ? (
               <tr>
                 <td colSpan={6} className="clients-empty-row">
-                  Aucune categorie trouvee.
+                  Aucune catégorie trouvée.
                 </td>
               </tr>
             ) : null}
@@ -200,7 +200,7 @@ export function CategoriesPage() {
                 <strong>{category.productsCount}</strong>
               </p>
               <p>
-                <span>Creation</span>
+                <span>Création</span>
                 <strong>{formatDate(category.createdAt)}</strong>
               </p>
             </div>
@@ -233,7 +233,7 @@ export function CategoriesPage() {
           onClick={() => setPage((current) => Math.max(1, current - 1))}
           disabled={pageSafe === 1}
         >
-          Precedent
+          Précédent
         </button>
 
         <div className="clients-pagination-pages">
@@ -275,7 +275,7 @@ export function CategoriesPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
-              <h3>Supprimer categorie</h3>
+              <h3>Supprimer catégorie</h3>
               <button
                 type="button"
                 className="icon-action-btn"

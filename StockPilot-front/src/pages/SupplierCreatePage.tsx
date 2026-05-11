@@ -39,7 +39,7 @@ export function SupplierCreatePage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Ajouter fournisseur</h2>
-          <p className="page-subtitle">Creation d une nouvelle fiche fournisseur.</p>
+          <p className="page-subtitle">Création d une nouvelle fiche fournisseur.</p>
         </div>
       </div>
 
@@ -52,7 +52,7 @@ export function SupplierCreatePage() {
           </label>
 
           <label className="field-block">
-            <span>Telephone *</span>
+            <span>Téléphone *</span>
             <input type="tel" placeholder="Ex: +2250700000000" {...register("phone")} />
             {errors.phone ? <small>{errors.phone.message}</small> : null}
           </label>

@@ -35,15 +35,15 @@ export function CategoryCreatePage() {
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Ajouter categorie</h2>
-          <p className="page-subtitle">Creation d une nouvelle categorie.</p>
+          <h2 className="page-title">Ajouter catégorie</h2>
+          <p className="page-subtitle">Création d une nouvelle catégorie.</p>
         </div>
       </div>
 
       <form className="client-form-card" onSubmit={onSubmit}>
         <div className="client-form-grid">
           <label className="field-block">
-            <span>Nom categorie *</span>
+            <span>Nom catégorie *</span>
             <input type="text" placeholder="Ex: Informatique" {...register("name")} />
             {errors.name ? <small>{errors.name.message}</small> : null}
           </label>
@@ -61,7 +61,7 @@ export function CategoryCreatePage() {
             <span>Description *</span>
             <textarea
               rows={4}
-              placeholder="Description de la categorie"
+              placeholder="Description de la catégorie"
               {...register("description")}
             />
             {errors.description ? <small>{errors.description.message}</small> : null}

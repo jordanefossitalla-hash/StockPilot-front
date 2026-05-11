@@ -44,7 +44,7 @@ export function StockHistoryPage() {
 
   function typeBadge(type: "in" | "out" | "adjustment") {
     if (type === "in") {
-      return { text: "Entree", className: "status-active" }
+      return { text: "Entrée", className: "status-active" }
     }
 
     if (type === "out") {
@@ -68,7 +68,7 @@ export function StockHistoryPage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Historique stock</h2>
-          <p className="page-subtitle">Suivi des entrees, sorties et ajustements.</p>
+          <p className="page-subtitle">Suivi des entrées, sorties et ajustements.</p>
         </div>
 
         <div className="clients-actions">
@@ -86,7 +86,7 @@ export function StockHistoryPage() {
           <Search size={16} />
           <input
             type="search"
-            placeholder="Rechercher produit, motif, reference"
+            placeholder="Rechercher produit, motif, référence"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
@@ -105,7 +105,7 @@ export function StockHistoryPage() {
             }}
           >
             <option value="all">Tous</option>
-            <option value="in">Entree</option>
+            <option value="in">Entrée</option>
             <option value="out">Sortie</option>
             <option value="adjustment">Ajustement</option>
           </select>
@@ -125,9 +125,9 @@ export function StockHistoryPage() {
               <th>Date</th>
               <th>Produit</th>
               <th>Type</th>
-              <th>Quantite</th>
+              <th>Quantité</th>
               <th>Motif</th>
-              <th>Reference</th>
+              <th>Référence</th>
             </tr>
           </thead>
           <tbody>
@@ -156,7 +156,7 @@ export function StockHistoryPage() {
             {currentPageMovements.length === 0 ? (
               <tr>
                 <td colSpan={6} className="clients-empty-row">
-                  Aucun mouvement trouve.
+                  Aucun mouvement trouvé.
                 </td>
               </tr>
             ) : null}
@@ -184,7 +184,7 @@ export function StockHistoryPage() {
                   <strong>{formatDate(movement.date)}</strong>
                 </p>
                 <p>
-                  <span>Quantite</span>
+                  <span>Quantité</span>
                   <strong>{movement.quantity}</strong>
                 </p>
                 <p>
@@ -192,7 +192,7 @@ export function StockHistoryPage() {
                   <strong>{movement.reason}</strong>
                 </p>
                 <p>
-                  <span>Reference</span>
+                  <span>Référence</span>
                   <strong>{movement.reference ?? "-"}</strong>
                 </p>
               </div>
@@ -208,7 +208,7 @@ export function StockHistoryPage() {
           onClick={() => setPage((current) => Math.max(1, current - 1))}
           disabled={pageSafe === 1}
         >
-          Precedent
+          Précédent
         </button>
 
         <div className="clients-pagination-pages">

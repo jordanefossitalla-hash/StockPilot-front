@@ -3,13 +3,13 @@ import { NavLink } from "react-router-dom"
 
 const items = [
   { to: "/settings/profile", label: "Profil utilisateur", icon: UserRound },
-  { to: "/settings/shop", label: "Parametres boutique", icon: Building2 },
+  { to: "/settings/shop", label: "Paramètres boutique", icon: Building2 },
   { to: "/settings/users", label: "Gestion utilisateurs", icon: ShieldCheck },
 ]
 
 export function SettingsSubnav() {
   return (
-    <nav className="settings-subnav" aria-label="Navigation parametres">
+    <nav className="settings-subnav" aria-label="Navigation paramètres">
       {items.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}

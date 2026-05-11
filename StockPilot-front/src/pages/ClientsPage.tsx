@@ -89,7 +89,7 @@ export function ClientsPage() {
           <strong>{formatFcfa(stats.totalDebt)}</strong>
         </article>
         <article className="stat-card">
-          <span>Clients bloques</span>
+          <span>Clients bloqués</span>
           <strong>{stats.blockedCount}</strong>
         </article>
         <article className="stat-card">
@@ -107,7 +107,7 @@ export function ClientsPage() {
           <Search size={16} />
           <input
             type="search"
-            placeholder="Rechercher par nom, telephone ou code"
+            placeholder="Rechercher par nom, téléphone ou code"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
@@ -126,7 +126,7 @@ export function ClientsPage() {
           <thead>
             <tr>
               <th>Client</th>
-              <th>Telephone</th>
+              <th>Téléphone</th>
               <th>Dettes</th>
               <th>Dernier achat</th>
               <th>Statut</th>
@@ -155,7 +155,7 @@ export function ClientsPage() {
                       client.status === "active" ? "status-active" : "status-blocked"
                     }`}
                   >
-                    {client.status === "active" ? "Actif" : "Bloque"}
+                    {client.status === "active" ? "Actif" : "Bloqué"}
                   </span>
                 </td>
                 <td>
@@ -191,7 +191,7 @@ export function ClientsPage() {
             {currentPageClients.length === 0 ? (
               <tr>
                 <td colSpan={6} className="clients-empty-row">
-                  Aucun client trouve.
+                  Aucun client trouvé.
                 </td>
               </tr>
             ) : null}
@@ -212,13 +212,13 @@ export function ClientsPage() {
                   client.status === "active" ? "status-active" : "status-blocked"
                 }`}
               >
-                {client.status === "active" ? "Actif" : "Bloque"}
+                {client.status === "active" ? "Actif" : "Bloqué"}
               </span>
             </div>
 
             <div className="client-mobile-grid">
               <p>
-                <span>Telephone</span>
+                <span>Téléphone</span>
                 <strong>{client.phone}</strong>
               </p>
               <p>
@@ -271,7 +271,7 @@ export function ClientsPage() {
           onClick={() => setPage((current) => Math.max(1, current - 1))}
           disabled={pageSafe === 1}
         >
-          Precedent
+          Précédent
         </button>
 
         <div className="clients-pagination-pages">
@@ -305,11 +305,11 @@ export function ClientsPage() {
             className="modal-card"
             role="dialog"
             aria-modal="true"
-            aria-label="Detail client"
+            aria-label="Détail client"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
-              <h3>Detail client</h3>
+              <h3>Détail client</h3>
               <button
                 type="button"
                 className="icon-action-btn"
@@ -326,7 +326,7 @@ export function ClientsPage() {
                 <strong>{selectedClient.name}</strong>
               </p>
               <p>
-                <span>Telephone</span>
+                <span>Téléphone</span>
                 <strong>{selectedClient.phone}</strong>
               </p>
               <p>

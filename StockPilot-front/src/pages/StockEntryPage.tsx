@@ -38,14 +38,14 @@ export function StockEntryPage() {
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Entree stock</h2>
-          <p className="page-subtitle">Ajout de quantite sur un produit.</p>
+          <h2 className="page-title">Entrée stock</h2>
+          <p className="page-subtitle">Ajout de quantité sur un produit.</p>
         </div>
 
         <div className="clients-actions">
           <Link to="/stock" className="btn btn-ghost">
             <ArrowLeft size={16} />
-            Retour etat stock
+            Retour à l'état du stock
           </Link>
         </div>
       </div>
@@ -67,13 +67,13 @@ export function StockEntryPage() {
           </label>
 
           <label className="field-block">
-            <span>Quantite ajoutee *</span>
+            <span>Quantité ajoutée *</span>
             <input type="number" min={1} {...register("quantity", { valueAsNumber: true })} />
             {errors.quantity ? <small>{errors.quantity.message}</small> : null}
           </label>
 
           <label className="field-block">
-            <span>Reference</span>
+            <span>Référence</span>
             <input type="text" placeholder="BON-4455" {...register("reference")} />
             {errors.reference ? <small>{errors.reference.message}</small> : null}
           </label>
@@ -91,7 +91,7 @@ export function StockEntryPage() {
           </Link>
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
             <Save size={16} />
-            {isSubmitting ? "Traitement..." : "Valider entree"}
+            {isSubmitting ? "Traitement..." : "Valider entrée"}
           </button>
         </div>
       </form>

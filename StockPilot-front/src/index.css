@@ -110,6 +110,12 @@ button {
   cursor: pointer;
 }
 
+/* Visible focus ring for keyboard navigation */
+:where(a, button, input, select, textarea, [role="button"], [role="tab"]):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    App Shell
    ============================================================ */
@@ -168,7 +174,7 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 0 0.5rem;
-  height: var(--header-h);
+  height: 84px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   gap: 0.35rem;
@@ -178,37 +184,80 @@ button {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  gap: 0.65rem;
   min-width: 0;
   flex: 1;
+}
+
+.brand-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.58), transparent 45%),
+    linear-gradient(150deg, color-mix(in srgb, var(--color-brand) 20%, var(--color-surface)) 0%, var(--color-surface-raised) 75%);
+  border: 1px solid color-mix(in srgb, var(--color-brand) 18%, var(--color-border));
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
   overflow: hidden;
 }
 
 .brand-image-full {
-  height: 56px;
-  width: auto;
-  max-width: 240px;
+  width: 82%;
+  height: auto;
+  max-width: none;
   object-fit: contain;
-  object-position: left center;
+  object-position: center;
   display: block;
-  opacity: 1;
-  transform: translateX(0);
-  transition:
-    opacity 0.2s ease,
-    max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1.18);
+  filter:
+    drop-shadow(0 3px 10px rgba(15, 23, 42, 0.22))
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.7));
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;
+}
+
+.brand-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.02rem;
+  line-height: 1.05;
+  transition: opacity 0.2s ease, transform 0.25s ease;
+}
+
+.brand-copy strong {
+  font-size: 1.03rem;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.brand-copy span {
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
 }
 
 .sidebar-collapsed .brand-image-full {
-  opacity: 1;
-  max-width: none;
-  height: 50px;
-  width: 190px;
-  transform: translateX(-6px);
+  transform: scale(1.24);
 }
 
 .sidebar-collapsed .brand-logo {
-  flex: 0 0 48px;
-  width: 48px;
+  justify-content: center;
+  flex: 0 0 56px;
+  width: 56px;
+}
+
+.sidebar-collapsed .brand-mark {
+  width: 50px;
+  height: 50px;
+}
+
+.sidebar-collapsed .brand-copy {
+  opacity: 0;
+  transform: translateX(-4px);
+  width: 0;
+  overflow: hidden;
 }
 
 .collapse-btn {
@@ -686,7 +735,13 @@ button {
   }
 
   .app-main {
-    padding-bottom: calc(var(--bottom-nav-h) + 1rem);
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+
+  /* Keep list footers and pagination clear from the fixed mobile nav. */
+  .clients-page,
+  .dashboard-page {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 0.9rem);
   }
 }
 
@@ -1078,6 +1133,10 @@ button {
   gap: 0.8rem;
 }
 
+.clients-page-head > div {
+  min-width: 0;
+}
+
 .clients-actions {
   display: flex;
   align-items: center;
@@ -1168,6 +1227,11 @@ button {
   color: var(--color-text-muted);
 }
 
+.search-input-wrap:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 20%, transparent);
+}
+
 .search-input-wrap input {
   width: 100%;
   border: none;
@@ -1228,6 +1292,10 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.table-actions-icons .icon-action-btn {
+  flex-shrink: 0;
 }
 
 .icon-action-btn {
@@ -1391,14 +1459,20 @@ button {
   gap: 0.6rem;
 }
 
+.client-mobile-head > div {
+  min-width: 0;
+}
+
 .client-mobile-head strong {
   display: block;
   font-size: 0.9rem;
+  overflow-wrap: anywhere;
 }
 
 .client-mobile-head small {
   color: var(--color-text-muted);
   font-size: 0.74rem;
+  overflow-wrap: anywhere;
 }
 
 .client-mobile-grid {
@@ -1419,6 +1493,7 @@ button {
 
 .client-mobile-grid strong {
   font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 
 .clients-pagination {
@@ -1959,6 +2034,10 @@ button {
     flex-wrap: wrap;
   }
 
+  .table-actions-icons {
+    flex-wrap: wrap;
+  }
+
   .clients-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -2050,7 +2129,7 @@ button {
   }
 
   .clients-pagination .btn {
-    min-width: 120px;
+    min-width: 110px;
     justify-content: center;
   }
 
@@ -2091,6 +2170,11 @@ button {
   .clients-pagination-pages {
     width: 100%;
     justify-content: center;
+  }
+
+  .clients-pagination .btn {
+    min-width: 0;
+    flex: 1;
   }
 
   .page-chip {
@@ -2174,6 +2258,381 @@ button {
 
   .status-chip {
     min-width: 58px;
+  }
+}
+
+/* ============================================================
+   Sales
+   ============================================================ */
+
+.sales-page {
+  gap: 1rem;
+}
+
+@media (max-width: 1023px) {
+  .sales-page {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+}
+
+.sales-kpi-grid {
+  gap: 0.75rem;
+}
+
+.sales-main-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.sales-main-tab-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-full);
+  padding: 0.48rem 0.86rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.sales-main-tab-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-brand);
+}
+
+.sales-main-tab-btn.is-active {
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+.sales-kpi-toggle {
+  display: none;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.64rem 0.72rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sales-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(270px, 0.75fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.sales-layout-grid > * {
+  min-width: 0;
+}
+
+.sales-form-card {
+  gap: 0.85rem;
+}
+
+.sales-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.sales-form-head h3,
+.sales-info-card h3 {
+  font-size: 1rem;
+}
+
+.sales-inline-help {
+  color: var(--color-text-secondary) !important;
+  font-weight: 500 !important;
+}
+
+.sales-live-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.sales-live-summary p {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  padding: 0.62rem 0.72rem;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.sales-live-summary span {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.sales-live-summary strong {
+  font-size: 0.9rem;
+}
+
+.sales-info-card {
+  gap: 0.8rem;
+}
+
+.sales-info-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.28rem;
+  color: var(--color-text-secondary);
+  font-size: 0.83rem;
+}
+
+.sales-status-counters {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sales-status-counters p {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  padding: 0.48rem 0.62rem;
+}
+
+.sales-status-counters strong {
+  font-size: 0.87rem;
+}
+
+.sales-toolbar {
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.sales-toolbar .search-input-wrap {
+  width: min(520px, 100%);
+}
+
+.sales-tabs {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.sales-tab-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-full);
+  padding: 0.45rem 0.76rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.sales-tab-btn strong {
+  min-width: 1.35rem;
+  text-align: center;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  padding: 0.02rem 0.32rem;
+  font-size: 0.72rem;
+  color: var(--color-text);
+}
+
+.sales-tab-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-brand);
+}
+
+.sales-tab-btn.is-active {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.sales-tab-btn.is-active strong {
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+  color: var(--color-brand);
+}
+
+.sales-table-wrap .clients-table th,
+.sales-table-wrap .clients-table td {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Orders
+   ============================================================ */
+
+.orders-page {
+  gap: 1rem;
+}
+
+.orders-main-tabs {
+  padding: 0.28rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-surface-raised) 85%, var(--color-surface));
+}
+
+.orders-kpi-toggle {
+  display: none;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0.62rem 0.74rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.orders-stats-grid {
+  gap: 0.7rem;
+}
+
+.orders-stats-grid .stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.orders-stats-grid .stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-brand), color-mix(in srgb, var(--color-success) 70%, var(--color-brand)));
+  opacity: 0.7;
+}
+
+.orders-layout-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.75fr);
+}
+
+.orders-table-wrap .clients-table th,
+.orders-table-wrap .clients-table td {
+  white-space: nowrap;
+}
+
+.orders-action-btn {
+  min-height: 34px;
+  justify-content: center;
+}
+
+.orders-mobile-list .orders-action-btn {
+  width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .orders-page {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+}
+
+@media (max-width: 760px) {
+  .orders-kpi-toggle {
+    display: inline-flex;
+  }
+
+  .orders-kpi-block .orders-stats-grid {
+    display: none;
+  }
+
+  .orders-kpi-block.is-open .orders-stats-grid {
+    display: grid;
+    margin-top: 0.55rem;
+  }
+}
+
+@media (max-width: 1120px) {
+  .sales-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .sales-kpi-toggle {
+    display: inline-flex;
+  }
+
+  .sales-kpi-block .sales-kpi-grid {
+    display: none;
+  }
+
+  .sales-kpi-block.is-open .sales-kpi-grid {
+    display: grid;
+    margin-top: 0.6rem;
+  }
+
+  .sales-live-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .sales-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sales-toolbar .clients-page-indicator {
+    text-align: right;
+  }
+}
+
+@media (max-width: 560px) {
+  .orders-main-tabs {
+    border-radius: var(--radius-md);
+  }
+
+  .sales-main-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .sales-main-tab-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .sales-tab-btn {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.68rem;
+  }
+
+  .sales-form-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sales-form-head .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sales-mobile-list .client-mobile-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2427,7 +2886,7 @@ button {
 
 .auth-lottie-wrap {
   position: relative;
-  height: 320px;
+  height: 340px;
   border-radius: 18px;
   border: 1px solid var(--color-border);
   background:
@@ -2437,6 +2896,29 @@ button {
   overflow: hidden;
   display: grid;
   place-items: center;
+}
+
+.auth-brand-lockup {
+  position: relative;
+  z-index: 1;
+  width: min(96%, 470px);
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+}
+
+.auth-brand-mark {
+  width: min(92%, 420px);
+  min-height: 190px;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--color-brand) 18%, var(--color-border));
+  background:
+    radial-gradient(circle at 25% 18%, rgba(255, 255, 255, 0.68), transparent 48%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-brand) 18%, var(--color-surface)) 0%, color-mix(in srgb, var(--color-surface-raised) 94%, var(--color-surface)) 80%);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
+  overflow: hidden;
 }
 
 .auth-visual-glow {
@@ -2452,12 +2934,28 @@ button {
 }
 
 .auth-brand-visual {
-  position: relative;
-  z-index: 1;
-  width: min(82%, 360px);
+  width: 76%;
   height: auto;
   object-fit: contain;
+  transform: scale(1.22);
+  filter:
+    drop-shadow(0 12px 26px rgba(15, 23, 42, 0.28))
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.75));
   animation: authFloat 3.6s ease-in-out infinite;
+}
+
+.auth-brand-name {
+  font-size: clamp(1.3rem, 2.4vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.018em;
+  color: color-mix(in srgb, var(--color-text) 84%, var(--color-brand));
+}
+
+:root[data-theme="dark"] .brand-image-full,
+:root[data-theme="dark"] .auth-brand-visual {
+  filter:
+    drop-shadow(0 10px 24px rgba(2, 6, 23, 0.62))
+    drop-shadow(0 0 2px rgba(191, 219, 254, 0.48));
 }
 
 @keyframes authFloat {
@@ -2467,6 +2965,22 @@ button {
   }
   50% {
     transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .auth-brand-visual {
+    animation: none !important;
+    transform: none !important;
   }
 }
 

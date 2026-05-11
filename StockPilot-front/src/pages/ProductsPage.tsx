@@ -170,7 +170,7 @@ export function ProductsPage() {
           <Search size={16} />
           <input
             type="search"
-            placeholder="Rechercher par nom, code, categorie"
+            placeholder="Rechercher par nom, code, catégorie"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
@@ -180,7 +180,7 @@ export function ProductsPage() {
         </label>
 
         <label className="products-filter-field">
-          <span>Categorie</span>
+          <span>Catégorie</span>
           <select
             value={categoryFilter}
             onChange={(event) => {
@@ -257,7 +257,7 @@ export function ProductsPage() {
           <thead>
             <tr>
               <th>Produit</th>
-              <th>Categorie</th>
+              <th>Catégorie</th>
               <th>Prix achat</th>
               <th>Prix vente</th>
               <th>Marge</th>
@@ -318,7 +318,7 @@ export function ProductsPage() {
             {currentPageProducts.length === 0 ? (
               <tr>
                 <td colSpan={8} className="clients-empty-row">
-                  Aucun produit trouve.
+                  Aucun produit trouvé.
                 </td>
               </tr>
             ) : null}
@@ -341,7 +341,7 @@ export function ProductsPage() {
 
               <div className="client-mobile-grid">
                 <p>
-                  <span>Categorie</span>
+                  <span>Catégorie</span>
                   <strong>{formatProductCategory(product.category)}</strong>
                 </p>
                 <p>
@@ -357,7 +357,7 @@ export function ProductsPage() {
                   <strong>{product.quantity}</strong>
                 </p>
                 <p>
-                  <span>Ajoute le</span>
+                  <span>Ajouté le</span>
                   <strong>{formatDate(product.createdAt)}</strong>
                 </p>
               </div>
@@ -398,7 +398,7 @@ export function ProductsPage() {
           onClick={() => setPage((current) => Math.max(1, current - 1))}
           disabled={pageSafe === 1}
         >
-          Precedent
+          Précédent
         </button>
 
         <div className="clients-pagination-pages">

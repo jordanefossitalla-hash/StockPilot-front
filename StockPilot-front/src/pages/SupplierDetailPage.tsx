@@ -7,7 +7,7 @@ import type { SupplierHistoryType } from "../features/suppliers/supplierTypes"
 
 function historyLabel(type: SupplierHistoryType) {
   if (type === "supply") {
-    return "Reception marchandise"
+    return "Réception marchandise"
   }
 
   if (type === "payment") {
@@ -97,7 +97,7 @@ export function SupplierDetailPage() {
       return "Dette"
     }
 
-    return "Equilibre"
+    return "Équilibre"
   }
 
   function handleRecordPayment(event: FormEvent<HTMLFormElement>) {
@@ -105,7 +105,7 @@ export function SupplierDetailPage() {
     const amount = Number(paymentAmount)
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setPaymentError("Montant invalide. Saisir une valeur superieure a 0.")
+      setPaymentError("Montant invalide. Saisissez une valeur supérieure à 0.")
       return
     }
 
@@ -119,7 +119,7 @@ export function SupplierDetailPage() {
             date: paymentDate,
             type: "payment",
             description:
-              paymentNote.trim() || "Paiement fournisseur enregistre manuellement",
+              paymentNote.trim() || "Paiement fournisseur enregistré manuellement",
             amount,
             reference: paymentReference.trim() || `PAY-${Date.now().toString().slice(-6)}`,
             method: paymentMethod,
@@ -142,7 +142,7 @@ export function SupplierDetailPage() {
     const amount = Number(supplyAmount)
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setSupplyError("Montant invalide. Saisir une valeur superieure a 0.")
+      setSupplyError("Montant invalide. Saisissez une valeur supérieure à 0.")
       return
     }
 
@@ -156,7 +156,7 @@ export function SupplierDetailPage() {
             date: supplyDate,
             type: "supply",
             description:
-              supplyNote.trim() || "Reception marchandise enregistree manuellement",
+              supplyNote.trim() || "Réception marchandise enregistrée manuellement",
             amount,
             reference: supplyReference.trim() || `SUP-${Date.now().toString().slice(-6)}`,
           },
@@ -177,16 +177,16 @@ export function SupplierDetailPage() {
     <section className="page clients-page supplier-detail-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Detail fournisseur</h2>
+          <h2 className="page-title">Détail fournisseur</h2>
           <p className="page-subtitle">
-            Compte fournisseur en temps reel de {supplierState.name}.
+            Compte fournisseur en temps réel de {supplierState.name}.
           </p>
         </div>
 
         <div className="clients-actions">
           <Link className="btn btn-ghost" to="/suppliers">
             <ArrowLeft size={16} />
-            Retour liste
+            Retour à la liste
           </Link>
           <Link className="btn btn-primary" to={`/suppliers/${supplierState.id}/edit`}>
             <FilePenLine size={16} />
@@ -201,7 +201,7 @@ export function SupplierDetailPage() {
             <h3>{supplierState.name}</h3>
             <p>{supplierState.phone}</p>
             <p>{supplierState.email ?? "Aucun email"}</p>
-            <p>{supplierState.address ?? "Adresse non renseignee"}</p>
+            <p>{supplierState.address ?? "Adresse non renseignée"}</p>
             <p>Depuis le {formatDate(supplierState.createdAt)}</p>
           </div>
           <span
@@ -218,7 +218,7 @@ export function SupplierDetailPage() {
         <div className="client-history-head">
           <h3>Enregistrer un mouvement</h3>
           <span>
-            <CreditCard size={14} /> Operations en modal
+            <CreditCard size={14} /> Opérations en modal
           </span>
         </div>
 
@@ -229,7 +229,7 @@ export function SupplierDetailPage() {
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => setSupplyModalOpen(true)}>
             <PackagePlus size={16} />
-            Reception (-)
+            Réception (-)
           </button>
         </div>
       </article>
@@ -247,7 +247,7 @@ export function SupplierDetailPage() {
           <Search size={14} />
           <input
             type="search"
-            placeholder="Rechercher type, note, reference ou methode"
+            placeholder="Rechercher type, note, référence ou méthode"
             value={movementQuery}
             onChange={(event) => setMovementQuery(event.target.value)}
           />
@@ -281,7 +281,7 @@ export function SupplierDetailPage() {
               {filteredMovements.length === 0 ? (
                 <tr>
                     <td colSpan={3} className="clients-empty-row">
-                    Aucun mouvement enregistre.
+                    Aucun mouvement enregistré.
                   </td>
                 </tr>
               ) : null}
@@ -360,20 +360,20 @@ export function SupplierDetailPage() {
               </label>
 
               <label className="field-block">
-                <span>Methode *</span>
+                <span>Méthode *</span>
                 <select
                   value={paymentMethod}
                   onChange={(event) => setPaymentMethod(event.target.value)}
                 >
                   <option value="Virement">Virement</option>
                   <option value="Mobile Money">Mobile Money</option>
-                  <option value="Espece">Espece</option>
-                  <option value="Cheque">Cheque</option>
+                  <option value="Espece">Espèce</option>
+                  <option value="Cheque">Chèque</option>
                 </select>
               </label>
 
               <label className="field-block">
-                <span>Reference</span>
+                <span>Référence</span>
                 <input
                   type="text"
                   value={paymentReference}
@@ -413,11 +413,11 @@ export function SupplierDetailPage() {
             className="modal-card"
             role="dialog"
             aria-modal="true"
-            aria-label="Enregistrer une reception"
+            aria-label="Enregistrer une réception"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
-              <h3>Reception marchandise (-)</h3>
+              <h3>Réception marchandise (-)</h3>
             </div>
 
             <form className="client-form-grid" onSubmit={handleRecordSupply}>
@@ -442,7 +442,7 @@ export function SupplierDetailPage() {
               </label>
 
               <label className="field-block field-block-full">
-                <span>Reference</span>
+                <span>Référence</span>
                 <input
                   type="text"
                   value={supplyReference}
@@ -457,7 +457,7 @@ export function SupplierDetailPage() {
                   rows={2}
                   value={supplyNote}
                   onChange={(event) => setSupplyNote(event.target.value)}
-                  placeholder="Commentaire de reception"
+                  placeholder="Commentaire de réception"
                 />
               </label>
 

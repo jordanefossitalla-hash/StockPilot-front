@@ -17,7 +17,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           <div className="auth-visual-content">
             <span className="auth-chip">
               <ShieldCheck size={14} />
-              Securite StockPilot
+              Sécurité StockPilot
             </span>
             <h2>Pilotez votre activite commerciale en toute confiance</h2>
             <p>
@@ -27,12 +27,17 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           </div>
           <div className="auth-lottie-wrap">
             <div className="auth-visual-glow" aria-hidden="true" />
-            <img
-              className="auth-brand-visual"
-              src={appLogo}
-              alt="StockPilot"
-              loading="lazy"
-            />
+            <div className="auth-brand-lockup">
+              <div className="auth-brand-mark">
+                <img
+                  className="auth-brand-visual"
+                  src={appLogo}
+                  alt="StockPilot"
+                  loading="lazy"
+                />
+              </div>
+              <p className="auth-brand-name">StockPilot</p>
+            </div>
           </div>
         </aside>
 

@@ -75,7 +75,7 @@ export function SuppliersPage() {
           <Search size={16} />
           <input
             type="search"
-            placeholder="Rechercher par nom, telephone ou code"
+            placeholder="Rechercher par nom, téléphone ou code"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
@@ -111,9 +111,9 @@ export function SuppliersPage() {
           <thead>
             <tr>
               <th>Fournisseur</th>
-              <th>Telephone</th>
+              <th>Téléphone</th>
               <th>Produits fournis</th>
-              <th>Achats credites</th>
+              <th>Achats crédités</th>
               <th>Paiements</th>
               <th>Solde courant</th>
               <th>Statut</th>
@@ -136,11 +136,11 @@ export function SuppliersPage() {
                 <td>
                   {supplier.debtTotal - supplier.paymentsTotal >= 0 ? (
                     <span className="text-danger">
-                      {formatFcfa(supplier.debtTotal - supplier.paymentsTotal)} a payer
+                      {formatFcfa(supplier.debtTotal - supplier.paymentsTotal)} à payer
                     </span>
                   ) : (
                     <span className="text-success">
-                      {formatFcfa(Math.abs(supplier.debtTotal - supplier.paymentsTotal))} d avoir
+                      {formatFcfa(Math.abs(supplier.debtTotal - supplier.paymentsTotal))} d'avoir
                     </span>
                   )}
                 </td>
@@ -185,7 +185,7 @@ export function SuppliersPage() {
             {currentPageSuppliers.length === 0 ? (
               <tr>
                 <td colSpan={8} className="clients-empty-row">
-                  Aucun fournisseur trouve.
+                  Aucun fournisseur trouvé.
                 </td>
               </tr>
             ) : null}
@@ -212,7 +212,7 @@ export function SuppliersPage() {
 
             <div className="client-mobile-grid">
               <p>
-                <span>Telephone</span>
+                <span>Téléphone</span>
                 <strong>{supplier.phone}</strong>
               </p>
               <p>
@@ -220,7 +220,7 @@ export function SuppliersPage() {
                 <strong>{supplier.suppliedProducts.length}</strong>
               </p>
               <p>
-                <span>Achats credites</span>
+                <span>Achats crédités</span>
                 <strong>{formatFcfa(supplier.debtTotal)}</strong>
               </p>
               <p>
@@ -237,8 +237,8 @@ export function SuppliersPage() {
                   }
                 >
                   {supplier.debtTotal - supplier.paymentsTotal >= 0
-                    ? `${formatFcfa(supplier.debtTotal - supplier.paymentsTotal)} a payer`
-                    : `${formatFcfa(Math.abs(supplier.debtTotal - supplier.paymentsTotal))} d avoir`}
+                    ? `${formatFcfa(supplier.debtTotal - supplier.paymentsTotal)} à payer`
+                    : `${formatFcfa(Math.abs(supplier.debtTotal - supplier.paymentsTotal))} d'avoir`}
                 </strong>
               </p>
               <p>
@@ -282,7 +282,7 @@ export function SuppliersPage() {
           onClick={() => setPage((current) => Math.max(1, current - 1))}
           disabled={pageSafe === 1}
         >
-          Precedent
+          Précédent
         </button>
 
         <div className="clients-pagination-pages">

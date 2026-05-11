@@ -39,13 +39,13 @@ export function StockExitPage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Sortie stock</h2>
-          <p className="page-subtitle">Sortie de quantite sur un produit.</p>
+          <p className="page-subtitle">Sortie de quantité sur un produit.</p>
         </div>
 
         <div className="clients-actions">
           <Link to="/stock" className="btn btn-ghost">
             <ArrowLeft size={16} />
-            Retour etat stock
+            Retour à l'état du stock
           </Link>
         </div>
       </div>
@@ -67,13 +67,13 @@ export function StockExitPage() {
           </label>
 
           <label className="field-block">
-            <span>Quantite sortie *</span>
+            <span>Quantité sortie *</span>
             <input type="number" min={1} {...register("quantity", { valueAsNumber: true })} />
             {errors.quantity ? <small>{errors.quantity.message}</small> : null}
           </label>
 
           <label className="field-block">
-            <span>Reference</span>
+            <span>Référence</span>
             <input type="text" placeholder="FAC-9020" {...register("reference")} />
             {errors.reference ? <small>{errors.reference.message}</small> : null}
           </label>

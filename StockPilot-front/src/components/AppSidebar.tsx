@@ -38,7 +38,7 @@ const navGroups: NavGroup[] = [
       { to: "/clients", label: "Clients", icon: Users },
       { to: "/orders", label: "Commandes", icon: ShoppingCart, badge: 4 },
       { to: "/products", label: "Produits", icon: Package },
-      { to: "/categories", label: "Categories", icon: Boxes },
+      { to: "/categories", label: "Catégories", icon: Boxes },
       { to: "/stock", label: "Stock", icon: Archive },
       { to: "/suppliers", label: "Fournisseurs", icon: Truck },
     ],
@@ -87,7 +87,13 @@ export function AppSidebar({
         {/* Brand */}
         <div className="sidebar-brand">
           <div className="brand-logo">
-            <img src={appLogo} className="brand-image-full" alt="StockPilot" />
+            <div className="brand-mark" aria-hidden="true">
+              <img src={appLogo} className="brand-image-full" alt="StockPilot" />
+            </div>
+            <div className="brand-copy" aria-hidden={isCollapsed}>
+              <strong>StockPilot</strong>
+              <span>Gestion commerciale</span>
+            </div>
           </div>
           <button
             type="button"

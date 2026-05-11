@@ -34,7 +34,7 @@ export function ForgotPasswordPage() {
 
     try {
       await authService.forgotPassword({ email: values.email })
-      setSuccess("Un email de reinitialisation a ete envoye.")
+      setSuccess("Un email de réinitialisation a été envoyé.")
     } catch (submitError) {
       const message =
         submitError instanceof Error
@@ -48,11 +48,11 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthLayout
-      title="Mot de passe oublie"
-      subtitle="Entrez votre email de recuperation pour recevoir un lien de reinitialisation."
+      title="Mot de passe oublié"
+      subtitle="Entrez votre email de récupération pour recevoir un lien de réinitialisation."
       footer={
         <Link to="/login" className="auth-link">
-          Retour a la connexion
+          Retour à la connexion
         </Link>
       }
     >

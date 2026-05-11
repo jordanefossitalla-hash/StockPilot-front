@@ -92,7 +92,7 @@ export function SettingsShopPage() {
     <section className="page clients-page settings-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Parametres boutique</h2>
+          <h2 className="page-title">Paramètres boutique</h2>
           <p className="page-subtitle">Configuration globale de la boutique.</p>
         </div>
       </div>
@@ -135,7 +135,7 @@ export function SettingsShopPage() {
             </label>
 
             <label className="field-block">
-              <span>Telephone boutique</span>
+              <span>Téléphone boutique</span>
               <input value={phone} onChange={(event) => setPhone(event.target.value)} />
             </label>
 
@@ -153,7 +153,7 @@ export function SettingsShopPage() {
             </label>
 
             <label className="field-block field-block-full">
-              <span>Ou televerser un logo</span>
+              <span>Ou téléverser un logo</span>
               <input type="file" accept="image/*" onChange={handleLogoSelect} />
             </label>
           </div>
@@ -161,7 +161,7 @@ export function SettingsShopPage() {
           <div className="client-form-actions">
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               <Save size={16} />
-              {isSubmitting ? "Sauvegarde..." : "Sauvegarder"}
+                {isSubmitting ? "Enregistrement..." : "Enregistrer"}
             </button>
           </div>
         </form>

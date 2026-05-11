@@ -16,8 +16,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/clients": "Clients",
   "/orders": "Commandes",
   "/products": "Produits",
-  "/categories": "Categories",
-  "/stock": "Etat du stock",
+  "/categories": "Catégories",
+  "/stock": "État du stock",
   "/suppliers": "Fournisseurs",
   "/reports": "Rapports",
   "/settings": "Paramètres",
@@ -33,7 +33,7 @@ function resolvePageTitle(pathname: string) {
   }
 
   if (pathname === "/categories/new") {
-    return "Ajouter categorie"
+    return "Ajouter catégorie"
   }
 
   if (pathname === "/suppliers/new") {
@@ -45,7 +45,7 @@ function resolvePageTitle(pathname: string) {
   }
 
   if (/^\/clients\/[^/]+$/.test(pathname)) {
-    return "Detail client"
+    return "Détail client"
   }
 
   if (/^\/products\/[^/]+\/edit$/.test(pathname)) {
@@ -53,11 +53,11 @@ function resolvePageTitle(pathname: string) {
   }
 
   if (/^\/products\/[^/]+$/.test(pathname)) {
-    return "Detail produit"
+    return "Détail produit"
   }
 
   if (/^\/categories\/[^/]+\/edit$/.test(pathname)) {
-    return "Modifier categorie"
+    return "Modifier catégorie"
   }
 
   if (/^\/suppliers\/[^/]+\/edit$/.test(pathname)) {
@@ -65,11 +65,11 @@ function resolvePageTitle(pathname: string) {
   }
 
   if (/^\/suppliers\/[^/]+$/.test(pathname)) {
-    return "Detail fournisseur"
+    return "Détail fournisseur"
   }
 
   if (pathname === "/stock/in") {
-    return "Entree stock"
+    return "Entrée stock"
   }
 
   if (pathname === "/stock/out") {
@@ -85,7 +85,7 @@ function resolvePageTitle(pathname: string) {
   }
 
   if (pathname === "/settings/shop") {
-    return "Parametres boutique"
+    return "Paramètres boutique"
   }
 
   if (pathname === "/settings/users") {

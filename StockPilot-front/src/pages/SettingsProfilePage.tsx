@@ -23,7 +23,7 @@ export function SettingsProfilePage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Profil utilisateur</h2>
-          <p className="page-subtitle">Informations personnelles du compte connecte.</p>
+          <p className="page-subtitle">Informations personnelles du compte connecté.</p>
         </div>
       </div>
 
@@ -47,7 +47,7 @@ export function SettingsProfilePage() {
             </label>
 
             <label className="field-block">
-              <span>Role</span>
+              <span>Rôle</span>
               <input value={role} disabled />
             </label>
 
@@ -61,7 +61,7 @@ export function SettingsProfilePage() {
             </label>
 
             <label className="field-block">
-              <span>Telephone</span>
+              <span>Téléphone</span>
               <input value={phone} onChange={(event) => setPhone(event.target.value)} />
             </label>
           </div>
@@ -69,7 +69,7 @@ export function SettingsProfilePage() {
           <div className="client-form-actions">
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               <Save size={16} />
-              {isSubmitting ? "Sauvegarde..." : "Sauvegarder"}
+              {isSubmitting ? "Enregistrement..." : "Enregistrer"}
             </button>
           </div>
         </form>

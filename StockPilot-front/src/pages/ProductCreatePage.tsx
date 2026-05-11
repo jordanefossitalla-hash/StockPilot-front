@@ -38,7 +38,7 @@ export function ProductCreatePage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Ajouter produit</h2>
-          <p className="page-subtitle">Creation d une nouvelle fiche produit.</p>
+          <p className="page-subtitle">Création d une nouvelle fiche produit.</p>
         </div>
       </div>
 
@@ -51,7 +51,7 @@ export function ProductCreatePage() {
           </label>
 
           <label className="field-block">
-            <span>Categorie *</span>
+            <span>Catégorie *</span>
             <select {...register("category")}>
               <option value="informatique">Informatique</option>
               <option value="electromenager">Electromenager</option>
@@ -62,7 +62,7 @@ export function ProductCreatePage() {
           </label>
 
           <label className="field-block">
-            <span>Quantite *</span>
+            <span>Quantité *</span>
             <input type="number" min={0} {...register("quantity", { valueAsNumber: true })} />
             {errors.quantity ? <small>{errors.quantity.message}</small> : null}
           </label>

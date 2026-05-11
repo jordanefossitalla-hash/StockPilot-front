@@ -47,12 +47,12 @@ export function ClientEditPage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Modifier client</h2>
-          <p className="page-subtitle">Mise a jour de la fiche {client.name}.</p>
+          <p className="page-subtitle">Mise à jour de la fiche {client.name}.</p>
         </div>
         <div className="clients-actions">
           <Link to="/clients" className="btn btn-ghost">
             <ArrowLeft size={16} />
-            Retour a la liste
+            Retour à la liste
           </Link>
         </div>
       </div>
@@ -66,7 +66,7 @@ export function ClientEditPage() {
           </label>
 
           <label className="field-block">
-            <span>Telephone *</span>
+            <span>Téléphone *</span>
             <input type="tel" {...register("phone")} />
             {errors.phone ? <small>{errors.phone.message}</small> : null}
           </label>
@@ -81,7 +81,7 @@ export function ClientEditPage() {
             <span>Statut</span>
             <select {...register("status")}>
               <option value="active">Actif</option>
-              <option value="blocked">Bloque</option>
+              <option value="blocked">Bloqué</option>
             </select>
             {errors.status ? <small>{errors.status.message}</small> : null}
           </label>
@@ -108,11 +108,11 @@ export function ClientEditPage() {
             Liste clients
           </Link>
           <Link to={`/clients/${client.id}`} className="btn btn-ghost">
-            Retour detail
+            Retour au détail
           </Link>
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
             <Save size={16} />
-            {isSubmitting ? "Mise a jour..." : "Sauvegarder"}
+            {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>
         </div>
       </form>

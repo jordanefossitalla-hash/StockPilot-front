@@ -9,10 +9,10 @@ import { authService } from "../services/authService"
 
 const resetSchema = z
   .object({
-    token: z.string().min(6, "Le token de reinitialisation est requis."),
+    token: z.string().min(6, "Le token de réinitialisation est requis."),
     password: z
       .string()
-      .min(8, "Le mot de passe doit contenir au moins 8 caracteres."),
+      .min(8, "Le mot de passe doit contenir au moins 8 caractères."),
     confirmPassword: z.string().min(8, "Confirmation requise."),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -54,12 +54,12 @@ export function ResetPasswordPage() {
         token: values.token,
         password: values.password,
       })
-      setSuccess("Mot de passe mis a jour avec succes.")
+      setSuccess("Mot de passe mis à jour avec succès.")
     } catch (submitError) {
       const message =
         submitError instanceof Error
           ? submitError.message
-          : "La reinitialisation a echoue."
+          : "La réinitialisation a échoué."
       setError(message)
     } finally {
       setIsSubmitting(false)
@@ -68,17 +68,17 @@ export function ResetPasswordPage() {
 
   return (
     <AuthLayout
-      title="Reinitialiser le mot de passe"
-      subtitle="Definissez un nouveau mot de passe securise pour votre compte."
+      title="Réinitialiser le mot de passe"
+      subtitle="Définissez un nouveau mot de passe sécurisé pour votre compte."
       footer={
         <Link to="/login" className="auth-link">
-          Retour a la connexion
+          Retour à la connexion
         </Link>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>
         <label className="auth-label" htmlFor="token">
-          Token de reinitialisation
+          Token de réinitialisation
         </label>
         <div className="auth-input-wrap">
           <ShieldCheck size={16} />
@@ -142,7 +142,7 @@ export function ResetPasswordPage() {
         {error ? <p className="auth-error">{error}</p> : null}
 
         <button className="auth-submit-btn" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Mise a jour..." : "Mettre a jour"}
+          {isSubmitting ? "Mise à jour..." : "Mettre à jour"}
         </button>
       </form>
     </AuthLayout>

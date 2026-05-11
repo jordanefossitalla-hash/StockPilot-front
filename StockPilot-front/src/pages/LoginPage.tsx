@@ -12,9 +12,9 @@ const loginSchema = z.object({
     .string()
     .regex(
       /^\+?[0-9][0-9\s-]{7,14}$/,
-      "Saisissez un numero de telephone valide.",
+      "Saisissez un numéro de téléphone valide.",
     ),
-  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caracteres."),
+  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères."),
 })
 
 type LoginFormValues = z.infer<typeof loginSchema>
@@ -67,16 +67,16 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Connexion"
-      subtitle="Connectez-vous avec votre numero de telephone et votre mot de passe."
+      subtitle="Connectez-vous avec votre numéro de téléphone et votre mot de passe."
       footer={
         <Link to="/forgot-password" className="auth-link">
-          Mot de passe oublie ?
+          Mot de passe oublié ?
         </Link>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>
         <label className="auth-label" htmlFor="phone">
-          Numero de telephone
+          Numéro de téléphone
         </label>
         <div className="auth-input-wrap">
           <Phone size={16} />

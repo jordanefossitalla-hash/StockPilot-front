@@ -15,13 +15,13 @@ export function ClientDetailPage() {
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Detail client</h2>
-          <p className="page-subtitle">Suivi complet des operations de {client.name}.</p>
+          <h2 className="page-title">Détail client</h2>
+          <p className="page-subtitle">Suivi complet des opérations de {client.name}.</p>
         </div>
         <div className="clients-actions">
           <Link className="btn btn-ghost" to="/clients">
             <ArrowLeft size={16} />
-            Retour liste
+            Retour à la liste
           </Link>
           <Link className="btn btn-primary" to={`/clients/${client.id}/edit`}>
             <FilePenLine size={16} />
@@ -36,14 +36,14 @@ export function ClientDetailPage() {
             <h3>{client.name}</h3>
             <p>{client.phone}</p>
             <p>{client.email ?? "Aucun email"}</p>
-            <p>{client.address ?? "Adresse non renseignee"}</p>
+            <p>{client.address ?? "Adresse non renseignée"}</p>
           </div>
           <span
             className={`status-chip ${
               client.status === "active" ? "status-active" : "status-blocked"
             }`}
           >
-            {client.status === "active" ? "Actif" : "Bloque"}
+            {client.status === "active" ? "Actif" : "Bloqué"}
           </span>
         </div>
 
@@ -73,7 +73,7 @@ export function ClientDetailPage() {
         <div className="client-history-head">
           <h3>Historique transactions</h3>
           <span>
-            <CreditCard size={14} /> {client.transactions.length} operations
+            <CreditCard size={14} /> {client.transactions.length} opérations
           </span>
         </div>
 
@@ -84,7 +84,7 @@ export function ClientDetailPage() {
                 <th>Date</th>
                 <th>Description</th>
                 <th>Type</th>
-                <th>Reference</th>
+                <th>Référence</th>
                 <th>Montant</th>
               </tr>
             </thead>

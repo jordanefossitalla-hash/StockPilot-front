@@ -43,14 +43,14 @@ export function CategoryEditPage() {
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Modifier categorie</h2>
-          <p className="page-subtitle">Mise a jour de la categorie {category.name}.</p>
+          <h2 className="page-title">Modifier catégorie</h2>
+          <p className="page-subtitle">Mise à jour de la catégorie {category.name}.</p>
         </div>
 
         <div className="clients-actions">
           <Link to="/categories" className="btn btn-ghost">
             <ArrowLeft size={16} />
-            Retour a la liste
+            Retour à la liste
           </Link>
         </div>
       </div>
@@ -58,7 +58,7 @@ export function CategoryEditPage() {
       <form className="client-form-card" onSubmit={onSubmit}>
         <div className="client-form-grid">
           <label className="field-block">
-            <span>Nom categorie *</span>
+            <span>Nom catégorie *</span>
             <input type="text" {...register("name")} />
             {errors.name ? <small>{errors.name.message}</small> : null}
           </label>
@@ -81,11 +81,11 @@ export function CategoryEditPage() {
 
         <div className="client-form-actions">
           <Link to="/categories" className="btn btn-ghost">
-            Liste categories
+            Liste catégories
           </Link>
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
             <Save size={16} />
-            {isSubmitting ? "Mise a jour..." : "Sauvegarder"}
+            {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>
         </div>
       </form>

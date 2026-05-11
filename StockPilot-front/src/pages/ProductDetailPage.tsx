@@ -24,7 +24,7 @@ function getStatusLabel(quantity: number) {
 
 function formatMovementType(type: "in" | "out" | "adjustment") {
   if (type === "in") {
-    return "Entree"
+    return "Entrée"
   }
 
   if (type === "out") {
@@ -50,7 +50,7 @@ export function ProductDetailPage() {
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
-          <h2 className="page-title">Detail produit</h2>
+          <h2 className="page-title">Détail produit</h2>
           <p className="page-subtitle">
             Historique ventes et mouvements stock de {product.name}.
           </p>
@@ -59,7 +59,7 @@ export function ProductDetailPage() {
         <div className="clients-actions">
           <Link className="btn btn-ghost" to="/products">
             <ArrowLeft size={16} />
-            Retour liste
+            Retour à la liste
           </Link>
           <Link className="btn btn-primary" to={`/products/${product.id}/edit`}>
             <FilePenLine size={16} />
@@ -74,7 +74,7 @@ export function ProductDetailPage() {
             <h3>{product.name}</h3>
             <p>{product.id}</p>
             <p>{formatProductCategory(product.category)}</p>
-            <p>Ajoute le {formatDate(product.createdAt)}</p>
+            <p>Ajouté le {formatDate(product.createdAt)}</p>
           </div>
           <span className={`status-chip ${status.className}`}>{status.text}</span>
         </div>
@@ -93,7 +93,7 @@ export function ProductDetailPage() {
             <strong>{formatFcfa(unitMargin)}</strong>
           </div>
           <div className="client-stat-box">
-            <span>Quantite en stock</span>
+            <span>Quantité en stock</span>
             <strong>{product.quantity}</strong>
           </div>
           <div className="client-stat-box">
@@ -118,7 +118,7 @@ export function ProductDetailPage() {
                 <th>Date</th>
                 <th>Client</th>
                 <th>Facture</th>
-                <th>Qte</th>
+                <th>Qté</th>
                 <th>PU</th>
                 <th>Total</th>
               </tr>
@@ -138,7 +138,7 @@ export function ProductDetailPage() {
               {product.salesHistory.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="clients-empty-row">
-                    Aucune vente enregistree.
+                    Aucune vente enregistrée.
                   </td>
                 </tr>
               ) : null}
@@ -162,7 +162,7 @@ export function ProductDetailPage() {
                   <strong>{formatDate(sale.date)}</strong>
                 </p>
                 <p>
-                  <span>Quantite</span>
+                  <span>Quantité</span>
                   <strong>{sale.quantity}</strong>
                 </p>
                 <p>
@@ -175,7 +175,7 @@ export function ProductDetailPage() {
 
           {product.salesHistory.length === 0 ? (
             <article className="client-mobile-card">
-              <p className="clients-empty-row">Aucune vente enregistree.</p>
+              <p className="clients-empty-row">Aucune vente enregistrée.</p>
             </article>
           ) : null}
         </div>
@@ -195,9 +195,9 @@ export function ProductDetailPage() {
               <tr>
                 <th>Date</th>
                 <th>Type</th>
-                <th>Qte</th>
+                <th>Qté</th>
                 <th>Motif</th>
-                <th>Reference</th>
+                <th>Référence</th>
               </tr>
             </thead>
             <tbody>
@@ -231,7 +231,7 @@ export function ProductDetailPage() {
                   <strong>{movement.reason}</strong>
                 </p>
                 <p>
-                  <span>Reference</span>
+                  <span>Référence</span>
                   <strong>{movement.reference ?? "-"}</strong>
                 </p>
               </div>

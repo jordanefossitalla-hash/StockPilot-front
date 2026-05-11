@@ -2,8 +2,8 @@ import { ArrowDownCircle, ArrowUpCircle, History, Layers } from "lucide-react"
 import { NavLink } from "react-router-dom"
 
 const items = [
-  { to: "/stock", label: "Etat", icon: Layers },
-  { to: "/stock/in", label: "Entree", icon: ArrowUpCircle },
+  { to: "/stock", label: "État", icon: Layers },
+  { to: "/stock/in", label: "Entrée", icon: ArrowUpCircle },
   { to: "/stock/out", label: "Sortie", icon: ArrowDownCircle },
   { to: "/stock/history", label: "Historique", icon: History },
 ]

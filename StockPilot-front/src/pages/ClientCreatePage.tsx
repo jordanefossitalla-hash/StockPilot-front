@@ -39,7 +39,7 @@ export function ClientCreatePage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Ajouter client</h2>
-          <p className="page-subtitle">Creer une nouvelle fiche client.</p>
+          <p className="page-subtitle">Créer une nouvelle fiche client.</p>
         </div>
       </div>
 
@@ -56,7 +56,7 @@ export function ClientCreatePage() {
           </label>
 
           <label className="field-block">
-            <span>Telephone *</span>
+            <span>Téléphone *</span>
             <input
               type="tel"
               placeholder="Ex: +2250700000000"
@@ -79,7 +79,7 @@ export function ClientCreatePage() {
             <span>Statut</span>
             <select {...register("status")}>
               <option value="active">Actif</option>
-              <option value="blocked">Bloque</option>
+              <option value="blocked">Bloqué</option>
             </select>
             {errors.status ? <small>{errors.status.message}</small> : null}
           </label>

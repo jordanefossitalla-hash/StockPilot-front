@@ -48,13 +48,13 @@ export function SupplierEditPage() {
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Modifier fournisseur</h2>
-          <p className="page-subtitle">Mise a jour de la fiche {supplier.name}.</p>
+          <p className="page-subtitle">Mise à jour de la fiche {supplier.name}.</p>
         </div>
 
         <div className="clients-actions">
           <Link to="/suppliers" className="btn btn-ghost">
             <ArrowLeft size={16} />
-            Retour a la liste
+            Retour à la liste
           </Link>
         </div>
       </div>
@@ -68,7 +68,7 @@ export function SupplierEditPage() {
           </label>
 
           <label className="field-block">
-            <span>Telephone *</span>
+            <span>Téléphone *</span>
             <input type="tel" {...register("phone")} />
             {errors.phone ? <small>{errors.phone.message}</small> : null}
           </label>
@@ -110,11 +110,11 @@ export function SupplierEditPage() {
             Liste fournisseurs
           </Link>
           <Link to={`/suppliers/${supplier.id}`} className="btn btn-ghost">
-            Retour detail
+            Retour au détail
           </Link>
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
             <Save size={16} />
-            {isSubmitting ? "Mise a jour..." : "Sauvegarder"}
+            {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>
         </div>
       </form>
