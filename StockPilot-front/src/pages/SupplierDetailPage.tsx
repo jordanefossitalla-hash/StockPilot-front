@@ -88,18 +88,6 @@ export function SupplierDetailPage() {
     })
   }, [historyWithBalance, movementQuery])
 
-  function balanceLabel(value: number) {
-    if (value > 0) {
-      return "Avoir"
-    }
-
-    if (value < 0) {
-      return "Dette"
-    }
-
-    return "Équilibre"
-  }
-
   function handleRecordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const amount = Number(paymentAmount)

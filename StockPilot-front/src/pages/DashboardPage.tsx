@@ -66,6 +66,61 @@ function formatMonthTick(month: string, isMobile: boolean) {
   return month.slice(0, 3)
 }
 
+function formatMetricLabel(label: string, isMobile: boolean) {
+  const labels: Record<string, string> = {
+    "Benefices(semaine en cours)": "Benefices semaine",
+    "Total ventes (semaine en cours)": "Ventes semaine",
+    "Revenus du jour": "Revenus jour",
+    "Clients (nombre)": "Clients",
+    "Fournisseurs (nombre)": "Fournisseurs",
+    "Dettes clients": "Dette clients",
+    "Dettes fournisseurs": "Dette fournisseurs",
+    "Benefice mensuel": "Benefice mensuel",
+  }
+
+  if (isMobile) {
+    return labels[label] ?? label.replace(/\s*\([^)]*\)/g, "").trim()
+  }
+
+  return labels[label] ?? label.replace(/\s*\([^)]*\)/g, "").trim()
+}
+
+function getMetricKicker(label: string) {
+  const normalized = label.toLowerCase()
+
+  if (normalized.includes("semaine")) {
+    return "Semaine"
+  }
+
+  if (normalized.includes("jour")) {
+    return "Aujourd'hui"
+  }
+
+  if (normalized.includes("mensuel")) {
+    return "Mensuel"
+  }
+
+  if (normalized.includes("dettes")) {
+    return "Encours"
+  }
+
+  if (normalized.includes("clients") || normalized.includes("fournisseurs")) {
+    return "Base active"
+  }
+
+  return "Suivi"
+}
+
+function formatMetricDelta(delta: number, isMobile: boolean) {
+  const prefix = delta > 0 ? "+" : ""
+
+  if (isMobile) {
+    return `${prefix}${delta.toFixed(1)}%`
+  }
+
+  return `${prefix}${delta.toFixed(1)}% vs mois précédent`
+}
+
 export function DashboardPage() {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") {
@@ -92,12 +147,20 @@ export function DashboardPage() {
   return (
     <div className="page dashboard-page">
       <section className="metrics-grid" aria-label="Widgets metiers">
-        {dashboardMetrics.map((metric) => (
-          <article key={metric.label} className="metric-card">
-            <p className="metric-label">{metric.label}</p>
-            <p className="metric-value">
-              {formatMetricValue(metric.label, metric.value)}
-            </p>
+        {dashboardMetrics.map((metric, index) => (
+          <article
+            key={metric.label}
+            className={`metric-card ${index < 2 ? "metric-card-featured" : ""}`}
+          >
+            <div className="metric-copy">
+              <span className="metric-kicker">{getMetricKicker(metric.label)}</span>
+              <p className="metric-label" title={metric.label}>
+                {formatMetricLabel(metric.label, isMobile)}
+              </p>
+              <p className="metric-value">
+                {formatMetricValue(metric.label, metric.value)}
+              </p>
+            </div>
             <p
               className={`metric-delta ${metric.delta >= 0 ? "is-up" : "is-down"}`}
             >
@@ -106,8 +169,7 @@ export function DashboardPage() {
               ) : (
                 <ArrowDownRight size={14} />
               )}
-              {metric.delta > 0 ? "+" : ""}
-              {metric.delta.toFixed(1)}% vs mois précédent
+              {formatMetricDelta(metric.delta, isMobile)}
             </p>
             <span className={`metric-accent accent-${metric.variant}`} />
           </article>

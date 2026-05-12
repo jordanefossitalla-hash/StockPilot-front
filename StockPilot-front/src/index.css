@@ -96,6 +96,7 @@ body {
   line-height: 1.6;
   color: var(--color-text);
   background-color: var(--color-bg);
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -791,6 +792,8 @@ button {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-width: 0;
+  width: 100%;
 }
 
 .page-header {
@@ -820,11 +823,12 @@ button {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 0.9rem;
 }
 
 .metric-card {
+  grid-column: span 4;
   position: relative;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -832,13 +836,43 @@ button {
   padding: 0.9rem 1rem;
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.metric-card-featured {
+  grid-column: span 6;
+  min-height: 9.5rem;
+}
+
+.metric-copy {
+  min-width: 0;
+}
+
+.metric-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.65rem;
 }
 
 .metric-label {
   color: var(--color-text-secondary);
   font-size: 0.78rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.45rem;
+  line-height: 1.35;
 }
 
 .metric-value {
@@ -846,7 +880,15 @@ button {
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.2;
-  margin-bottom: 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+.metric-card-featured .metric-label {
+  font-size: 0.82rem;
+}
+
+.metric-card-featured .metric-value {
+  font-size: 1.65rem;
 }
 
 .metric-delta {
@@ -982,7 +1024,11 @@ button {
 }
 
 .table-wrap {
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .dashboard-table {
@@ -1040,7 +1086,12 @@ button {
 
 @media (max-width: 1200px) {
   .metrics-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .metric-card,
+  .metric-card-featured {
+    grid-column: span 3;
   }
 
   .dashboard-layout {
@@ -1051,6 +1102,11 @@ button {
 @media (max-width: 980px) {
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-card,
+  .metric-card-featured {
+    grid-column: span 1;
   }
 
   .dashboard-layout {
@@ -1064,7 +1120,16 @@ button {
 
 @media (max-width: 640px) {
   .metrics-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .metric-card,
+  .metric-card-featured {
+    grid-column: span 1;
+    min-height: 0;
+    padding: 0.78rem 0.8rem;
+    gap: 0.52rem;
   }
 
   .dashboard-page {
@@ -1087,6 +1152,27 @@ button {
 
   .metric-value {
     font-size: 1.1rem;
+  }
+
+  .metric-card-featured .metric-value {
+    font-size: 1.18rem;
+  }
+
+  .metric-kicker {
+    font-size: 0.62rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .metric-label {
+    font-size: 0.72rem;
+  }
+
+  .metric-card-featured .metric-label {
+    font-size: 0.75rem;
+  }
+
+  .metric-delta {
+    font-size: 0.7rem;
   }
 
   .chart-box,
@@ -1152,6 +1238,8 @@ button {
   font-weight: 700;
   border: 1px solid transparent;
   padding: 0.52rem 0.82rem;
+  white-space: normal;
+  text-align: center;
   transition: all 0.15s ease;
 }
 
@@ -1244,7 +1332,7 @@ button {
 .clients-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 900px;
+  min-width: 760px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -2006,6 +2094,17 @@ button {
 }
 
 @media (max-width: 760px) {
+  .clients-page .table-wrap,
+  .sales-page .table-wrap {
+    display: none;
+  }
+
+  .clients-page .clients-mobile-list,
+  .sales-page .clients-mobile-list {
+    display: grid;
+    gap: 0.65rem;
+  }
+
   .clients-page-head {
     flex-direction: column;
     align-items: stretch;
@@ -2034,6 +2133,14 @@ button {
     flex-wrap: wrap;
   }
 
+  .clients-actions .btn,
+  .modal-actions .btn,
+  .client-form-actions .btn {
+    flex: 1 1 calc(50% - 0.3rem);
+    min-width: 0;
+    justify-content: center;
+  }
+
   .table-actions-icons {
     flex-wrap: wrap;
   }
@@ -2045,6 +2152,7 @@ button {
 
   .clients-page-indicator {
     text-align: right;
+    white-space: normal;
   }
 
   .clients-stats-grid {
@@ -2141,6 +2249,18 @@ button {
     justify-content: stretch;
     flex-wrap: wrap;
   }
+
+  .search-input-wrap,
+  .sales-toolbar .search-input-wrap,
+  .supplier-inline-search {
+    width: 100%;
+    max-width: none;
+  }
+
+  .modal-card {
+    width: 100%;
+    padding: 0.9rem;
+  }
 }
 
 @media (max-width: 560px) {
@@ -2165,6 +2285,12 @@ button {
   .clients-actions .btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .modal-actions .btn,
+  .client-form-actions .btn {
+    width: 100%;
+    flex: 1 1 100%;
   }
 
   .clients-pagination-pages {
@@ -2491,6 +2617,8 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--color-surface-raised) 85%, var(--color-surface));
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .orders-kpi-toggle {
@@ -2809,6 +2937,10 @@ button {
 
   .page-title {
     font-size: 1.25rem;
+  }
+
+  .page-subtitle {
+    overflow-wrap: anywhere;
   }
 }
 
