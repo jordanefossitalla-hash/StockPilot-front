@@ -57,7 +57,7 @@ type AppSidebarProps = {
   isCollapsed: boolean
   onClose: () => void
   onToggleCollapse: () => void
-  onLogout: () => void
+  onLogout: () => void | Promise<void>
   userName: string
   userRole: string
   userInitials: string

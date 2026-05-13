@@ -137,3 +137,7 @@ export const clientsData: Client[] = [
 export function getClientById(clientId: string) {
   return clientsData.find((client) => client.id === clientId)
 }
+
+export function addClient(client: Client) {
+  clientsData.unshift(client)
+}

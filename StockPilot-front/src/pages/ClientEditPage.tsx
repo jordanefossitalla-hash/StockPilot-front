@@ -2,19 +2,30 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeft, Save } from "lucide-react"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom"
-import { getClientById } from "../features/clients/clientData"
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   clientFormSchema,
   type ClientFormValues,
 } from "../features/clients/clientSchemas"
+import type { Client } from "../features/clients/clientTypes"
+import { updateClient } from "../services/clientService"
+
+type EditLocationState = {
+  client?: Client
+}
 
 export function ClientEditPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { clientId } = useParams<{ clientId: string }>()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const client = clientId ? getClientById(clientId) : undefined
+  const client = (location.state as EditLocationState | null)?.client
+
+  if (!clientId || !client || client.id !== clientId) {
+    return <Navigate to="/clients" replace />
+  }
 
   const {
     register,
@@ -23,6 +34,7 @@ export function ClientEditPage() {
   } = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
     defaultValues: {
+      code: client?.code ?? "",
       name: client?.name ?? "",
       phone: client?.phone ?? "",
       email: client?.email ?? "",
@@ -32,14 +44,22 @@ export function ClientEditPage() {
     },
   })
 
-  if (!client) {
-    return <Navigate to="/clients" replace />
-  }
-
-  const onSubmit = handleSubmit(async () => {
+  const onSubmit = handleSubmit(async (values) => {
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate(`/clients/${client.id}`)
+    setSubmitError(null)
+
+    try {
+      const updated = await updateClient(client.id, values)
+      navigate("/clients", { replace: true, state: { updatedClientId: updated.id } })
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Modification client impossible. Veuillez reessayer.",
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -58,7 +78,15 @@ export function ClientEditPage() {
       </div>
 
       <form className="client-form-card" onSubmit={onSubmit}>
+        {submitError ? <p className="auth-error">{submitError}</p> : null}
+
         <div className="client-form-grid">
+          <label className="field-block">
+            <span>Code client</span>
+            <input type="text" readOnly {...register("code")} />
+            {errors.code ? <small>{errors.code.message}</small> : null}
+          </label>
+
           <label className="field-block">
             <span>Nom complet *</span>
             <input type="text" {...register("name")} />
@@ -106,9 +134,6 @@ export function ClientEditPage() {
         <div className="client-form-actions">
           <Link to="/clients" className="btn btn-ghost">
             Liste clients
-          </Link>
-          <Link to={`/clients/${client.id}`} className="btn btn-ghost">
-            Retour au détail
           </Link>
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
             <Save size={16} />

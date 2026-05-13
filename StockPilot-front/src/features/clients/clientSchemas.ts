@@ -1,6 +1,11 @@
 import { z } from "zod"
 
 export const clientFormSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(3, "Le code client est obligatoire")
+    .max(40, "Le code client est trop long"),
   name: z
     .string()
     .min(2, "Le nom doit contenir au moins 2 caracteres")

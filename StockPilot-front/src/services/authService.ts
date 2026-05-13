@@ -9,8 +9,9 @@ import type {
 } from "../types/auth"
 
 const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL?.trim() ||
-  "https://api.stockpilots.net/api/v1"
+  (import.meta.env.VITE_API_BASE_URL?.trim() ||
+    "https://api.stockpilots.net/api/v1")
+    .replace(/\/+$/, "")
 
 function requireApiBaseUrl(): string {
   return apiBaseUrl
@@ -51,6 +52,35 @@ function parseAuthSession(
   }
 }
 
+function parseRefreshTokens(data: { accessToken?: string; refreshToken?: string }): Pick<AuthSession, "token" | "refreshToken"> {
+  if (!data.accessToken || !data.refreshToken) {
+    throw new Error("Réponse refresh invalide du serveur.")
+  }
+
+  return {
+    token: data.accessToken,
+    refreshToken: data.refreshToken,
+  }
+}
+
+function parseMeUser(data: unknown): AuthUser {
+  if (!data || typeof data !== "object") {
+    throw new Error("Réponse profil invalide du serveur.")
+  }
+
+  const raw = data as {
+    user?: Partial<AuthUser> & { id?: string; phone?: string; role?: string }
+    id?: string
+    phone?: string
+    role?: string
+    name?: string
+    email?: string
+  }
+
+  const userPayload = raw.user && typeof raw.user === "object" ? raw.user : raw
+  return normalizeAuthUser(userPayload)
+}
+
 function resolveErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const apiMessage = (error.response?.data as { message?: string } | undefined)?.message
@@ -78,7 +108,7 @@ async function login(credentials: LoginCredentials): Promise<AuthSession> {
 
   try {
     const response = await axios.post(`${baseUrl}/auth/login`, {
-      phone: credentials.phone,
+      phone: credentials.phone.trim(),
       password: credentials.password,
     })
 
@@ -93,7 +123,7 @@ async function register(payload: RegisterPayload): Promise<AuthSession> {
 
   try {
     const response = await axios.post(`${baseUrl}/auth/register`, {
-      phone: payload.phone,
+      phone: payload.phone.trim(),
       password: payload.password,
       role: payload.role,
     })
@@ -101,6 +131,48 @@ async function register(payload: RegisterPayload): Promise<AuthSession> {
     return parseAuthSession(response.data, payload.phone)
   } catch (error) {
     throw new Error(resolveErrorMessage(error, "Inscription impossible."))
+  }
+}
+
+async function refresh(refreshToken: string): Promise<Pick<AuthSession, "token" | "refreshToken">> {
+  const baseUrl = requireApiBaseUrl()
+
+  try {
+    const response = await axios.post(`${baseUrl}/auth/refresh`, {
+      refreshToken: refreshToken.trim(),
+    })
+
+    return parseRefreshTokens(response.data)
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Rafraîchissement de session impossible."))
+  }
+}
+
+async function logout(refreshToken: string): Promise<void> {
+  const baseUrl = requireApiBaseUrl()
+
+  try {
+    await axios.post(`${baseUrl}/auth/logout`, {
+      refreshToken: refreshToken.trim(),
+    })
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Déconnexion impossible."))
+  }
+}
+
+async function me(token: string): Promise<AuthUser> {
+  const baseUrl = requireApiBaseUrl()
+
+  try {
+    const response = await axios.get(`${baseUrl}/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    return parseMeUser(response.data)
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Récupération du profil impossible."))
   }
 }
 
@@ -134,6 +206,9 @@ async function resetPassword(payload: ResetPasswordPayload): Promise<void> {
 export const authService = {
   login,
   register,
+  refresh,
+  logout,
+  me,
   forgotPassword,
   resetPassword,
 }

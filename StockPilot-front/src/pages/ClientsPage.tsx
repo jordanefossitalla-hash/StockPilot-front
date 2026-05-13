@@ -1,41 +1,86 @@
 import { Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { clientsData } from "../features/clients/clientData"
 import { formatDate, formatFcfa } from "../features/clients/clientFormatters"
 import { getClientStats } from "../features/clients/clientStats"
 import type { Client } from "../features/clients/clientTypes"
+import { deleteClient, listClients } from "../services/clientService"
 
 export function ClientsPage() {
-  const [clients, setClients] = useState(clientsData)
+  const [clients, setClients] = useState<Client[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [totalClients, setTotalClients] = useState(0)
   const [page, setPage] = useState(1)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
-  const PAGE_SIZE = 6
+  const PAGE_SIZE = 15
 
-  const filteredClients = useMemo(() => {
-    const search = query.trim().toLowerCase()
-    if (!search) {
-      return clients
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 300)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [query])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function fetchClients() {
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const result = await listClients({
+          status: "active",
+          search: debouncedQuery,
+          page,
+          limit: PAGE_SIZE,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setClients(result.clients)
+        setTotalClients(result.meta.total)
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Chargement des clients impossible.",
+        )
+        setClients([])
+        setTotalClients(0)
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
     }
 
-    return clients.filter((client) => {
-      return (
-        client.name.toLowerCase().includes(search) ||
-        client.phone.toLowerCase().includes(search) ||
-        client.id.toLowerCase().includes(search)
-      )
-    })
-  }, [clients, query])
+    void fetchClients()
 
-  const totalPages = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE))
+    return () => {
+      isActive = false
+    }
+  }, [PAGE_SIZE, debouncedQuery, page])
+
+  const totalPages = Math.max(1, Math.ceil(totalClients / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages)
 
-  const currentPageClients = useMemo(() => {
-    const start = (pageSafe - 1) * PAGE_SIZE
-    return filteredClients.slice(start, start + PAGE_SIZE)
-  }, [filteredClients, pageSafe])
+  const currentPageClients = useMemo(() => clients, [clients])
 
   const stats = useMemo(() => getClientStats(clients), [clients])
 
@@ -47,28 +92,43 @@ export function ClientsPage() {
     setSelectedClient(null)
   }
 
-  function confirmDeleteClient() {
+  async function confirmDeleteClient() {
     if (!clientToDelete) {
       return
     }
 
-    setClients((previous) =>
-      previous.filter((client) => client.id !== clientToDelete.id),
-    )
-    setClientToDelete(null)
-    setSelectedClient(null)
+    setDeleteError(null)
+    setIsDeleting(true)
+
+    try {
+      const deletedId = await deleteClient(clientToDelete.id)
+      setClients((previous) => previous.filter((client) => client.id !== deletedId))
+      setTotalClients((previous) => Math.max(0, previous - 1))
+      setClientToDelete(null)
+      setSelectedClient(null)
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error
+          ? error.message
+          : "Suppression client impossible.",
+      )
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const startRow =
-    filteredClients.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
-  const endRow = Math.min(pageSafe * PAGE_SIZE, filteredClients.length)
+    totalClients === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
+  const endRow = Math.min((pageSafe - 1) * PAGE_SIZE + currentPageClients.length, totalClients)
 
   return (
     <section className="page clients-page">
       <div className="clients-page-head">
         <div>
           <h2 className="page-title">Clients</h2>
-          <p className="page-subtitle">Liste clients, dettes et historique.</p>
+          <p className="page-subtitle">Liste clients, balance et historique.</p>
+          {loadError ? <p className="auth-error">{loadError}</p> : null}
+          {deleteError ? <p className="auth-error">{deleteError}</p> : null}
         </div>
 
         <div className="clients-actions">
@@ -85,7 +145,7 @@ export function ClientsPage() {
           <strong>{stats.totalClients}</strong>
         </article>
         <article className="stat-card">
-          <span>Total dettes</span>
+          <span>Total balance</span>
           <strong>{formatFcfa(stats.totalDebt)}</strong>
         </article>
         <article className="stat-card">
@@ -117,7 +177,7 @@ export function ClientsPage() {
         </label>
 
         <p className="clients-page-indicator">
-          {startRow}-{endRow} sur {filteredClients.length}
+          {isLoading ? "Chargement..." : `${startRow}-${endRow} sur ${totalClients}`}
         </p>
       </div>
 
@@ -127,7 +187,7 @@ export function ClientsPage() {
             <tr>
               <th>Client</th>
               <th>Téléphone</th>
-              <th>Dettes</th>
+              <th>Balance</th>
               <th>Dernier achat</th>
               <th>Statut</th>
               <th>Actions</th>
@@ -139,7 +199,7 @@ export function ClientsPage() {
                 <td>
                   <div className="client-main-cell">
                     <strong>{client.name}</strong>
-                    <small>{client.id}</small>
+                    <small>{client.code ?? client.id}</small>
                   </div>
                 </td>
                 <td>{client.phone}</td>
@@ -170,6 +230,7 @@ export function ClientsPage() {
                     </button>
                     <Link
                       to={`/clients/${client.id}/edit`}
+                      state={{ client }}
                       className="icon-action-btn"
                       aria-label={`Modifier ${client.name}`}
                     >
@@ -205,7 +266,7 @@ export function ClientsPage() {
             <div className="client-mobile-head">
               <div>
                 <strong>{client.name}</strong>
-                <small>{client.id}</small>
+                <small>{client.code ?? client.id}</small>
               </div>
               <span
                 className={`status-chip ${
@@ -222,7 +283,7 @@ export function ClientsPage() {
                 <strong>{client.phone}</strong>
               </p>
               <p>
-                <span>Dette</span>
+                <span>Balance</span>
                 <strong>{formatFcfa(client.debtTotal)}</strong>
               </p>
               <p>
@@ -246,6 +307,7 @@ export function ClientsPage() {
               </button>
               <Link
                 to={`/clients/${client.id}/edit`}
+                state={{ client }}
                 className="icon-action-btn"
                 aria-label={`Modifier ${client.name}`}
               >
@@ -334,7 +396,7 @@ export function ClientsPage() {
                 <strong>{selectedClient.email ?? "Aucun"}</strong>
               </p>
               <p>
-                <span>Dette</span>
+                <span>Balance</span>
                 <strong>{formatFcfa(selectedClient.debtTotal)}</strong>
               </p>
               <p>
@@ -404,8 +466,9 @@ export function ClientsPage() {
                 type="button"
                 className="btn btn-danger"
                 onClick={confirmDeleteClient}
+                disabled={isDeleting}
               >
-                Supprimer
+                {isDeleting ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </article>

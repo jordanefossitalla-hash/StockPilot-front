@@ -23,7 +23,11 @@ export function ClientDetailPage() {
             <ArrowLeft size={16} />
             Retour à la liste
           </Link>
-          <Link className="btn btn-primary" to={`/clients/${client.id}/edit`}>
+          <Link
+            className="btn btn-primary"
+            to={`/clients/${client.id}/edit`}
+            state={{ client }}
+          >
             <FilePenLine size={16} />
             Modifier
           </Link>

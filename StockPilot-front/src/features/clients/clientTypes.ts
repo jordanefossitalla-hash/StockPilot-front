@@ -14,6 +14,7 @@ export type ClientTransaction = {
 
 export type Client = {
   id: string
+  code?: string
   name: string
   phone: string
   email?: string

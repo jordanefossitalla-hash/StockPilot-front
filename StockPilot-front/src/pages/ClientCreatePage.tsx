@@ -1,24 +1,30 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Save } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
 import {
   clientFormSchema,
   type ClientFormValues,
 } from "../features/clients/clientSchemas"
+import { createClient, getNextClientCode } from "../services/clientService"
 
 export function ClientCreatePage() {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingCode, setIsLoadingCode] = useState(true)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
+    getValues,
+    setValue,
     formState: { errors },
   } = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
     defaultValues: {
+      code: "",
       name: "",
       phone: "",
       email: "",
@@ -28,10 +34,49 @@ export function ClientCreatePage() {
     },
   })
 
-  const onSubmit = handleSubmit(async () => {
+  useEffect(() => {
+    let isActive = true
+
+    async function hydrateClientCode() {
+      setIsLoadingCode(true)
+      try {
+        const nextCode = await getNextClientCode()
+        if (!isActive) {
+          return
+        }
+        if (!getValues("code").trim()) {
+          setValue("code", nextCode)
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingCode(false)
+        }
+      }
+    }
+
+    void hydrateClientCode()
+
+    return () => {
+      isActive = false
+    }
+  }, [getValues, setValue])
+
+  const onSubmit = handleSubmit(async (values) => {
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate("/clients")
+    setSubmitError(null)
+
+    try {
+      await createClient(values)
+      navigate("/clients")
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Creation client impossible. Veuillez reessayer.",
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -44,7 +89,20 @@ export function ClientCreatePage() {
       </div>
 
       <form className="client-form-card" onSubmit={onSubmit}>
+        {submitError ? <p className="auth-error">{submitError}</p> : null}
+
         <div className="client-form-grid">
+          <label className="field-block">
+            <span>Code client *</span>
+            <input
+              type="text"
+              placeholder="Ex: CLI-0010"
+              {...register("code")}
+            />
+            {errors.code ? <small>{errors.code.message}</small> : null}
+            {isLoadingCode ? <small>Generation auto en cours (modifiable).</small> : null}
+          </label>
+
           <label className="field-block">
             <span>Nom complet *</span>
             <input
@@ -110,7 +168,11 @@ export function ClientCreatePage() {
           <Link to="/clients" className="btn btn-ghost">
             Annuler
           </Link>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={isSubmitting}
+          >
             <Save size={16} />
             {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>

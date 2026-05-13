@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import axios from "axios"
 import { authService } from "../services/authService"
 import type { AuthSession, AuthUser, LoginCredentials, RegisterPayload } from "../types/auth"
 
@@ -7,11 +8,14 @@ type AuthStore = {
   refreshToken: string | null
   user: AuthUser | null
   isAuthenticated: boolean
+  isInitializing: boolean
   isLoading: boolean
   error: string | null
+  initializeSession: () => Promise<void>
   login: (credentials: LoginCredentials) => Promise<void>
   register: (payload: RegisterPayload) => Promise<void>
-  logout: () => void
+  refreshSession: () => Promise<string>
+  logout: () => Promise<void>
   clearError: () => void
 }
 
@@ -65,8 +69,83 @@ export const useAuthStore = create<AuthStore>((set) => ({
   refreshToken: initialSession.refreshToken,
   user: initialSession.user,
   isAuthenticated: Boolean(initialSession.token),
+  isInitializing: false,
   isLoading: false,
   error: null,
+  initializeSession: async () => {
+    const state = useAuthStore.getState()
+
+    if (!state.token) {
+      set({ isInitializing: false })
+      return
+    }
+
+    set({ isInitializing: true })
+
+    try {
+      const profile = await authService.me(state.token)
+      const syncedSession: AuthSession = {
+        token: state.token,
+        refreshToken: state.refreshToken ?? "",
+        user: profile,
+      }
+
+      saveSession(syncedSession)
+      set({
+        user: profile,
+        isAuthenticated: true,
+        isInitializing: false,
+        error: null,
+      })
+      return
+    } catch (error) {
+      const isUnauthorized = axios.isAxiosError(error) && error.response?.status === 401
+
+      if (!isUnauthorized || !state.refreshToken) {
+        saveSession(null)
+        set({
+          token: null,
+          refreshToken: null,
+          user: null,
+          isAuthenticated: false,
+          isInitializing: false,
+          error: null,
+        })
+        return
+      }
+    }
+
+    try {
+      const refreshed = await authService.refresh(state.refreshToken)
+      const profile = await authService.me(refreshed.token)
+
+      const nextSession: AuthSession = {
+        token: refreshed.token,
+        refreshToken: refreshed.refreshToken,
+        user: profile,
+      }
+
+      saveSession(nextSession)
+      set({
+        token: refreshed.token,
+        refreshToken: refreshed.refreshToken,
+        user: profile,
+        isAuthenticated: true,
+        isInitializing: false,
+        error: null,
+      })
+    } catch {
+      saveSession(null)
+      set({
+        token: null,
+        refreshToken: null,
+        user: null,
+        isAuthenticated: false,
+        isInitializing: false,
+        error: null,
+      })
+    }
+  },
   login: async (credentials) => {
     set({ isLoading: true, error: null })
     try {
@@ -123,16 +202,72 @@ export const useAuthStore = create<AuthStore>((set) => ({
       throw error
     }
   },
-  logout: () => {
-    saveSession(null)
-    set({
-      token: null,
-      refreshToken: null,
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-    })
+  refreshSession: async () => {
+    const currentRefreshToken = useAuthStore.getState().refreshToken
+
+    if (!currentRefreshToken) {
+      throw new Error("Aucun refresh token disponible.")
+    }
+
+    try {
+      const refreshed = await authService.refresh(currentRefreshToken)
+      const currentUser = useAuthStore.getState().user
+
+      if (!currentUser) {
+        throw new Error("Session utilisateur introuvable.")
+      }
+
+      const nextSession: AuthSession = {
+        token: refreshed.token,
+        refreshToken: refreshed.refreshToken,
+        user: currentUser,
+      }
+
+      saveSession(nextSession)
+      set({
+        token: refreshed.token,
+        refreshToken: refreshed.refreshToken,
+        isAuthenticated: true,
+        error: null,
+      })
+
+      return refreshed.token
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue pendant le rafraîchissement de session."
+
+      saveSession(null)
+      set({
+        token: null,
+        refreshToken: null,
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: message,
+      })
+      throw error
+    }
+  },
+  logout: async () => {
+    const currentRefreshToken = useAuthStore.getState().refreshToken
+
+    try {
+      if (currentRefreshToken) {
+        await authService.logout(currentRefreshToken)
+      }
+    } finally {
+      saveSession(null)
+      set({
+        token: null,
+        refreshToken: null,
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+      })
+    }
   },
   clearError: () => set({ error: null }),
 }))
