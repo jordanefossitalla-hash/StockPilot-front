@@ -4,44 +4,67 @@ import type {
   AuthUser,
   ForgotPasswordPayload,
   LoginCredentials,
+  RegisterPayload,
   ResetPasswordPayload,
 } from "../types/auth"
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+const apiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL?.trim() ||
+  "https://api.stockpilots.net/api/v1"
 
-function toBase64Url(payload: object): string {
-  return btoa(JSON.stringify(payload))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "")
+function requireApiBaseUrl(): string {
+  return apiBaseUrl
 }
 
-function createMockToken(user: AuthUser): string {
-  const now = Math.floor(Date.now() / 1000)
-  const header = toBase64Url({ alg: "HS256", typ: "JWT" })
-  const body = toBase64Url({
-    sub: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    iat: now,
-    exp: now + 60 * 60 * 8,
-  })
-
-  return `${header}.${body}.stockpilot-signature`
-}
-
-function buildMockUser(phone: string): AuthUser {
-  const normalizedPhone = phone.replace(/\s+/g, "")
+function normalizeAuthUser(rawUser: Partial<AuthUser> & { id?: string; phone?: string; role?: string }, phoneHint?: string): AuthUser {
+  const normalizedPhone = (rawUser.phone ?? phoneHint ?? "").replace(/\s+/g, "")
   const lastDigits = normalizedPhone.slice(-4)
 
   return {
-    id: `usr-${normalizedPhone.replace(/\D/g, "") || "local"}`,
-    name: `User ${lastDigits || "SP"}`,
-    email: `user${lastDigits || "0000"}@stockpilot.app`,
+    id: rawUser.id ?? `usr-${normalizedPhone.replace(/\D/g, "") || "local"}`,
     phone: normalizedPhone,
-    role: "Administrateur",
+    role: rawUser.role ?? "AGENT",
+    name: rawUser.name?.trim() || `Utilisateur ${lastDigits || "SP"}`,
+    email: rawUser.email?.trim() || `user${lastDigits || "0000"}@stockpilot.app`,
   }
+}
+
+function parseAuthSession(
+  data: {
+    accessToken?: string
+    token?: string
+    refreshToken?: string
+    user?: Partial<AuthUser> & { id?: string; phone?: string; role?: string }
+  },
+  phoneHint?: string,
+): AuthSession {
+  const token = data.accessToken ?? data.token
+
+  if (!token || !data.refreshToken || !data.user) {
+    throw new Error("Réponse auth invalide du serveur.")
+  }
+
+  return {
+    token,
+    refreshToken: data.refreshToken,
+    user: normalizeAuthUser(data.user, phoneHint),
+  }
+}
+
+function resolveErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const apiMessage = (error.response?.data as { message?: string } | undefined)?.message
+
+    if (typeof apiMessage === "string" && apiMessage.trim()) {
+      return apiMessage
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
 }
 
 function delay(durationMs = 600) {
@@ -51,39 +74,33 @@ function delay(durationMs = 600) {
 }
 
 async function login(credentials: LoginCredentials): Promise<AuthSession> {
-  if (apiBaseUrl) {
-    const response = await axios.post(`${apiBaseUrl}/auth/login`, {
+  const baseUrl = requireApiBaseUrl()
+
+  try {
+    const response = await axios.post(`${baseUrl}/auth/login`, {
       phone: credentials.phone,
       password: credentials.password,
     })
 
-    const data = response.data as {
-      accessToken?: string
-      token?: string
-      user?: AuthUser
-    }
-
-    const token = data.accessToken ?? data.token
-    if (!token || !data.user) {
-      throw new Error("Réponse login invalide du serveur.")
-    }
-
-    return {
-      token,
-      user: data.user,
-    }
+    return parseAuthSession(response.data, credentials.phone)
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Connexion impossible."))
   }
+}
 
-  await delay()
+async function register(payload: RegisterPayload): Promise<AuthSession> {
+  const baseUrl = requireApiBaseUrl()
 
-  if (credentials.password.length < 6) {
-    throw new Error("Mot de passe invalide.")
-  }
+  try {
+    const response = await axios.post(`${baseUrl}/auth/register`, {
+      phone: payload.phone,
+      password: payload.password,
+      role: payload.role,
+    })
 
-  const user = buildMockUser(credentials.phone)
-  return {
-    token: createMockToken(user),
-    user,
+    return parseAuthSession(response.data, payload.phone)
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Inscription impossible."))
   }
 }
 
@@ -116,6 +133,7 @@ async function resetPassword(payload: ResetPasswordPayload): Promise<void> {
 
 export const authService = {
   login,
+  register,
   forgotPassword,
   resetPassword,
 }

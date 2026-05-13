@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Private backend planning docs (do not publish)
+docs/backend/

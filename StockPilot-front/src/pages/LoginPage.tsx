@@ -69,9 +69,14 @@ export function LoginPage() {
       title="Connexion"
       subtitle="Connectez-vous avec votre numéro de téléphone et votre mot de passe."
       footer={
-        <Link to="/forgot-password" className="auth-link">
-          Mot de passe oublié ?
-        </Link>
+        <>
+          <Link to="/forgot-password" className="auth-link">
+            Mot de passe oublié ?
+          </Link>
+          <Link to="/register" className="auth-link">
+            Créer un compte
+          </Link>
+        </>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="auth-form" noValidate>

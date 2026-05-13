@@ -6,6 +6,8 @@ export type AuthUser = {
   role: string
 }
 
+export type AuthRole = "ADMIN" | "MANAGER" | "AGENT"
+
 export type LoginCredentials = {
   phone: string
   password: string
@@ -13,7 +15,14 @@ export type LoginCredentials = {
 
 export type AuthSession = {
   token: string
+  refreshToken: string
   user: AuthUser
+}
+
+export type RegisterPayload = {
+  phone: string
+  password: string
+  role: AuthRole
 }
 
 export type ForgotPasswordPayload = {
