@@ -1,9 +1,9 @@
 import { ArrowLeft, CreditCard, FilePenLine, PackagePlus, Search } from "lucide-react"
-import { useMemo, useState, type FormEvent } from "react"
-import { Link, Navigate, useParams } from "react-router-dom"
-import { getSupplierById } from "../features/suppliers/supplierData"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { Link, useParams } from "react-router-dom"
 import { formatDate, formatFcfa } from "../features/suppliers/supplierFormatters"
-import type { SupplierHistoryType } from "../features/suppliers/supplierTypes"
+import type { Supplier, SupplierHistoryType } from "../features/suppliers/supplierTypes"
+import { getSupplierByIdApi } from "../services/supplierService"
 
 function historyLabel(type: SupplierHistoryType) {
   if (type === "supply") {
@@ -19,13 +19,9 @@ function historyLabel(type: SupplierHistoryType) {
 
 export function SupplierDetailPage() {
   const { supplierId } = useParams<{ supplierId: string }>()
-  const supplier = supplierId ? getSupplierById(supplierId) : undefined
-
-  if (!supplier) {
-    return <Navigate to="/suppliers" replace />
-  }
-
-  const [supplierState, setSupplierState] = useState(supplier)
+  const [supplierState, setSupplierState] = useState<Supplier | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [paymentAmount, setPaymentAmount] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("Virement")
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
@@ -43,8 +39,51 @@ export function SupplierDetailPage() {
 
   const [movementQuery, setMovementQuery] = useState("")
 
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadSupplier() {
+      if (!supplierId) {
+        setLoadError("Fournisseur introuvable.")
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const supplier = await getSupplierByIdApi(supplierId)
+
+        if (!isMounted) {
+          return
+        }
+
+        setSupplierState(supplier)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const message = error instanceof Error ? error.message : "Fournisseur introuvable."
+        setLoadError(message)
+        setSupplierState(null)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadSupplier()
+
+    return () => {
+      isMounted = false
+    }
+  }, [supplierId])
+
   const historyWithBalance = useMemo(() => {
-    const movementsOnly = supplierState.history.filter(
+    const movementsOnly = (supplierState?.history ?? []).filter(
       (entry) => entry.type === "payment" || entry.type === "supply",
     )
 
@@ -52,7 +91,7 @@ export function SupplierDetailPage() {
       return first.date.localeCompare(second.date)
     })
 
-    let runningBalance = 0
+    let runningBalance = supplierState?.debtTotal ?? 0
 
     const withBalanceAscending = sortedAscending.map((entry) => {
       const delta = entry.type === "payment" ? entry.amount : -entry.amount
@@ -67,9 +106,9 @@ export function SupplierDetailPage() {
     })
 
     return withBalanceAscending.reverse()
-  }, [supplierState.history])
+  }, [supplierState?.debtTotal, supplierState?.history])
 
-  const currentBalance = historyWithBalance[0]?.runningBalance ?? 0
+  const currentBalance = historyWithBalance[0]?.runningBalance ?? supplierState?.debtTotal ?? 0
 
   const filteredMovements = useMemo(() => {
     const search = movementQuery.trim().toLowerCase()
@@ -98,8 +137,13 @@ export function SupplierDetailPage() {
     }
 
     setSupplierState((current) => {
+      if (!current) {
+        return current
+      }
+
       return {
         ...current,
+        debtTotal: current.debtTotal + amount,
         paymentsTotal: current.paymentsTotal + amount,
         history: [
           {
@@ -135,9 +179,13 @@ export function SupplierDetailPage() {
     }
 
     setSupplierState((current) => {
+      if (!current) {
+        return current
+      }
+
       return {
         ...current,
-        debtTotal: current.debtTotal + amount,
+        debtTotal: current.debtTotal - amount,
         history: [
           {
             id: `SHS-${Date.now()}`,
@@ -159,6 +207,28 @@ export function SupplierDetailPage() {
     setSupplyNote("")
     setSupplyError(null)
     setSupplyModalOpen(false)
+  }
+
+  if (isLoading) {
+    return (
+      <section className="page clients-page">
+        <p className="clients-empty-row">Chargement du fournisseur...</p>
+      </section>
+    )
+  }
+
+  if (loadError || !supplierState) {
+    return (
+      <section className="page clients-page">
+        <p className="form-error-banner">{loadError ?? "Fournisseur introuvable."}</p>
+        <div className="clients-actions">
+          <Link className="btn btn-ghost" to="/suppliers">
+            <ArrowLeft size={16} />
+            Retour à la liste
+          </Link>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -226,8 +296,7 @@ export function SupplierDetailPage() {
         <div className="client-history-head">
           <h3>Historique des mouvements</h3>
           <span>
-            <CreditCard size={14} /> Solde actuel {currentBalance >= 0 ? "+" : "-"}
-            {formatFcfa(Math.abs(currentBalance))}
+            <CreditCard size={14} /> Solde actuel: {currentBalance >= 0 ? "avance" : "dette"} {formatFcfa(Math.abs(currentBalance))}
           </span>
         </div>
 

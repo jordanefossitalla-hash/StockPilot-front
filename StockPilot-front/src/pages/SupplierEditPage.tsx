@@ -1,46 +1,138 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeft, Save } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom"
-import { getSupplierById } from "../features/suppliers/supplierData"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import {
   supplierFormSchema,
   type SupplierFormValues,
 } from "../features/suppliers/supplierSchemas"
+import type { Supplier } from "../features/suppliers/supplierTypes"
+import { getSupplierByIdApi, updateSupplier } from "../services/supplierService"
 
 export function SupplierEditPage() {
   const navigate = useNavigate()
   const { supplierId } = useParams<{ supplierId: string }>()
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const supplier = supplierId ? getSupplierById(supplierId) : undefined
+  const [supplier, setSupplier] = useState<Supplier | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
     defaultValues: {
-      name: supplier?.name ?? "",
-      phone: supplier?.phone ?? "",
-      email: supplier?.email ?? "",
-      address: supplier?.address ?? "",
-      status: supplier?.status ?? "active",
-      initialBalance:
-        supplier ? supplier.debtTotal - supplier.paymentsTotal : 0,
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      status: "active",
+      initialBalance: 0,
     },
   })
 
-  if (!supplier) {
-    return <Navigate to="/suppliers" replace />
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadSupplier() {
+      if (!supplierId) {
+        setLoadError("Fournisseur introuvable.")
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const result = await getSupplierByIdApi(supplierId)
+
+        if (!isMounted) {
+          return
+        }
+
+        setSupplier(result)
+        reset({
+          name: result.name,
+          phone: result.phone,
+          email: result.email ?? "",
+          address: result.address ?? "",
+          status: result.status,
+          initialBalance: result.debtTotal - result.paymentsTotal,
+        })
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const message = error instanceof Error ? error.message : "Fournisseur introuvable."
+        setLoadError(message)
+        setSupplier(null)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadSupplier()
+
+    return () => {
+      isMounted = false
+    }
+  }, [reset, supplierId])
+
+  if (isLoading) {
+    return (
+      <section className="page clients-page">
+        <p className="clients-empty-row">Chargement du fournisseur...</p>
+      </section>
+    )
   }
 
-  const onSubmit = handleSubmit(async () => {
+  if (loadError || !supplier) {
+    return (
+      <section className="page clients-page">
+        <p className="form-error-banner">{loadError ?? "Fournisseur introuvable."}</p>
+        <div className="clients-actions">
+          <Link to="/suppliers" className="btn btn-ghost">
+            <ArrowLeft size={16} />
+            Retour à la liste
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
+  const onSubmit = handleSubmit(async (values) => {
+    setSubmitError(null)
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate(`/suppliers/${supplier.id}`)
+
+    try {
+      const updated = await updateSupplier(supplier.id, {
+        name: values.name,
+        phone: values.phone,
+        email: values.email,
+        address: values.address,
+        status: values.status,
+        initialBalance: values.initialBalance,
+      })
+
+      navigate(`/suppliers/${updated.id}`)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Mise a jour fournisseur impossible."
+      setSubmitError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -95,6 +187,7 @@ export function SupplierEditPage() {
               step={1000}
               {...register("initialBalance", { valueAsNumber: true })}
             />
+            <small>Positif = avance chez le fournisseur, negatif = dette a regler.</small>
             {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
           </label>
 
@@ -104,6 +197,8 @@ export function SupplierEditPage() {
             {errors.address ? <small>{errors.address.message}</small> : null}
           </label>
         </div>
+
+        {submitError ? <p className="form-error-banner">{submitError}</p> : null}
 
         <div className="client-form-actions">
           <Link to="/suppliers" className="btn btn-ghost">

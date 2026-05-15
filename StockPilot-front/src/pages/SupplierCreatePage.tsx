@@ -1,16 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Save } from "lucide-react"
-import { useState } from "react"
+import { ArrowLeft, Save } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
 import {
   supplierFormSchema,
   type SupplierFormValues,
 } from "../features/suppliers/supplierSchemas"
+import { createSupplier, getNextSupplierCode } from "../services/supplierService"
 
 export function SupplierCreatePage() {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [supplierCode, setSupplierCode] = useState("")
+  const [isLoadingCode, setIsLoadingCode] = useState(true)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
@@ -28,10 +32,59 @@ export function SupplierCreatePage() {
     },
   })
 
-  const onSubmit = handleSubmit(async () => {
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadSupplierCode() {
+      try {
+        const nextCode = await getNextSupplierCode()
+        if (isMounted) {
+          setSupplierCode(nextCode)
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingCode(false)
+        }
+      }
+    }
+
+    loadSupplierCode()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const onSubmit = handleSubmit(async (values) => {
+    setSubmitError(null)
+
+    if (!supplierCode) {
+      setSubmitError("Impossible de générer le code fournisseur. Réessayez.")
+      return
+    }
+
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate("/suppliers")
+
+    try {
+      await createSupplier({
+        code: supplierCode,
+        name: values.name,
+        phone: values.phone,
+        email: values.email,
+        address: values.address,
+        status: values.status,
+        initialBalance: values.initialBalance,
+      })
+      navigate("/suppliers")
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Création fournisseur impossible."
+      setSubmitError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -41,10 +94,27 @@ export function SupplierCreatePage() {
           <h2 className="page-title">Ajouter fournisseur</h2>
           <p className="page-subtitle">Création d une nouvelle fiche fournisseur.</p>
         </div>
+
+        <div className="clients-actions">
+          <Link to="/suppliers" className="btn btn-ghost">
+            <ArrowLeft size={16} />
+            Retour à la liste
+          </Link>
+        </div>
       </div>
 
       <form className="client-form-card" onSubmit={onSubmit}>
         <div className="client-form-grid">
+          <label className="field-block">
+            <span>Code fournisseur</span>
+            <input
+              type="text"
+              value={isLoadingCode ? "Génération..." : supplierCode}
+              disabled
+              readOnly
+            />
+          </label>
+
           <label className="field-block">
             <span>Nom fournisseur *</span>
             <input type="text" placeholder="Ex: TechSource CI" {...register("name")} />
@@ -80,6 +150,7 @@ export function SupplierCreatePage() {
               placeholder="Ex: 0, 80000 ou -15000"
               {...register("initialBalance", { valueAsNumber: true })}
             />
+            <small>Positif = avance chez le fournisseur, negatif = dette a regler.</small>
             {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
           </label>
 
@@ -94,11 +165,17 @@ export function SupplierCreatePage() {
           </label>
         </div>
 
+        {submitError ? <p className="form-error-banner">{submitError}</p> : null}
+
         <div className="client-form-actions">
           <Link to="/suppliers" className="btn btn-ghost">
             Annuler
           </Link>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={isSubmitting || isLoadingCode}
+          >
             <Save size={16} />
             {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>

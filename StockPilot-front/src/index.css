@@ -1766,6 +1766,17 @@ button {
   gap: 0.6rem;
 }
 
+.form-error-banner {
+  margin-top: 0.9rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-surface));
+  color: var(--color-danger);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .client-detail-card {
   padding: 1rem;
   display: grid;

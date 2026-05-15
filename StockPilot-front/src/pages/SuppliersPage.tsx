@@ -1,45 +1,74 @@
 import { Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { suppliersData } from "../features/suppliers/supplierData"
 import { formatDate, formatFcfa } from "../features/suppliers/supplierFormatters"
 import type { Supplier } from "../features/suppliers/supplierTypes"
+import { listSuppliers } from "../services/supplierService"
 
 export function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState(suppliersData)
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [totalItems, setTotalItems] = useState(0)
   const [query, setQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [page, setPage] = useState(1)
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null)
-  const PAGE_SIZE = 6
+  const PAGE_SIZE = 20
 
-  const filteredSuppliers = useMemo(() => {
-    const search = query.trim().toLowerCase()
+  useEffect(() => {
+    let isMounted = true
 
-    return suppliers.filter((supplier) => {
-      const statusOk = statusFilter === "all" ? true : supplier.status === statusFilter
-      const searchOk =
-        search.length === 0
-          ? true
-          : supplier.name.toLowerCase().includes(search) ||
-            supplier.phone.toLowerCase().includes(search) ||
-            supplier.id.toLowerCase().includes(search)
+    async function fetchSuppliers() {
+      setIsLoading(true)
+      setLoadError(null)
 
-      return statusOk && searchOk
-    })
-  }, [suppliers, query, statusFilter])
+      try {
+        const response = await listSuppliers({
+          status: statusFilter === "all" ? undefined : statusFilter,
+          search: query,
+          page,
+          limit: PAGE_SIZE,
+        })
 
-  const totalPages = Math.max(1, Math.ceil(filteredSuppliers.length / PAGE_SIZE))
+        if (!isMounted) {
+          return
+        }
+
+        setSuppliers(response.data)
+        setTotalItems(response.meta.total)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Chargement fournisseurs impossible."
+        setLoadError(message)
+        setSuppliers([])
+        setTotalItems(0)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchSuppliers()
+
+    return () => {
+      isMounted = false
+    }
+  }, [statusFilter, page, query])
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages)
 
-  const currentPageSuppliers = useMemo(() => {
-    const start = (pageSafe - 1) * PAGE_SIZE
-    return filteredSuppliers.slice(start, start + PAGE_SIZE)
-  }, [filteredSuppliers, pageSafe])
+  const currentPageSuppliers = suppliers
 
   const startRow =
-    filteredSuppliers.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
-  const endRow = Math.min(pageSafe * PAGE_SIZE, filteredSuppliers.length)
+    suppliers.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
+  const endRow = Math.min((pageSafe - 1) * PAGE_SIZE + suppliers.length, totalItems)
 
   function confirmDeleteSupplier() {
     if (!supplierToDelete) {
@@ -49,6 +78,7 @@ export function SuppliersPage() {
     setSuppliers((previous) =>
       previous.filter((supplier) => supplier.id !== supplierToDelete.id),
     )
+    setTotalItems((previous) => Math.max(previous - 1, 0))
     setSupplierToDelete(null)
   }
 
@@ -102,9 +132,11 @@ export function SuppliersPage() {
 
       <div className="clients-toolbar">
         <p className="clients-page-indicator">
-          {startRow}-{endRow} sur {filteredSuppliers.length}
+          {startRow}-{endRow} sur {totalItems}
         </p>
       </div>
+
+      {loadError ? <p className="form-error-banner">{loadError}</p> : null}
 
       <div className="table-wrap">
         <table className="clients-table">
@@ -126,7 +158,7 @@ export function SuppliersPage() {
                 <td>
                   <div className="client-main-cell">
                     <strong>{supplier.name}</strong>
-                    <small>{supplier.id}</small>
+                    <small>{supplier.code ?? supplier.id}</small>
                   </div>
                 </td>
                 <td>{supplier.phone}</td>
@@ -134,13 +166,13 @@ export function SuppliersPage() {
                 <td>{formatFcfa(supplier.debtTotal)}</td>
                 <td>{formatFcfa(supplier.paymentsTotal)}</td>
                 <td>
-                  {supplier.debtTotal - supplier.paymentsTotal >= 0 ? (
-                    <span className="text-danger">
-                      {formatFcfa(supplier.debtTotal - supplier.paymentsTotal)} à payer
+                  {supplier.debtTotal >= 0 ? (
+                    <span className="text-success">
+                      {formatFcfa(supplier.debtTotal)} d'avance
                     </span>
                   ) : (
-                    <span className="text-success">
-                      {formatFcfa(Math.abs(supplier.debtTotal - supplier.paymentsTotal))} d'avoir
+                    <span className="text-danger">
+                      {formatFcfa(Math.abs(supplier.debtTotal))} à régler
                     </span>
                   )}
                 </td>
@@ -182,10 +214,18 @@ export function SuppliersPage() {
               </tr>
             ))}
 
-            {currentPageSuppliers.length === 0 ? (
+            {!isLoading && currentPageSuppliers.length === 0 ? (
               <tr>
                 <td colSpan={8} className="clients-empty-row">
                   Aucun fournisseur trouvé.
+                </td>
+              </tr>
+            ) : null}
+
+            {isLoading ? (
+              <tr>
+                <td colSpan={8} className="clients-empty-row">
+                  Chargement des fournisseurs...
                 </td>
               </tr>
             ) : null}
@@ -199,7 +239,7 @@ export function SuppliersPage() {
             <div className="client-mobile-head">
               <div>
                 <strong>{supplier.name}</strong>
-                <small>{supplier.id}</small>
+                <small>{supplier.code ?? supplier.id}</small>
               </div>
               <span
                 className={`status-chip ${
@@ -231,14 +271,14 @@ export function SuppliersPage() {
                 <span>Solde courant</span>
                 <strong
                   className={
-                    supplier.debtTotal - supplier.paymentsTotal >= 0
-                      ? "text-danger"
-                      : "text-success"
+                    supplier.debtTotal >= 0
+                      ? "text-success"
+                      : "text-danger"
                   }
                 >
-                  {supplier.debtTotal - supplier.paymentsTotal >= 0
-                    ? `${formatFcfa(supplier.debtTotal - supplier.paymentsTotal)} à payer`
-                    : `${formatFcfa(Math.abs(supplier.debtTotal - supplier.paymentsTotal))} d'avoir`}
+                  {supplier.debtTotal >= 0
+                    ? `${formatFcfa(supplier.debtTotal)} d'avance`
+                    : `${formatFcfa(Math.abs(supplier.debtTotal))} à régler`}
                 </strong>
               </p>
               <p>

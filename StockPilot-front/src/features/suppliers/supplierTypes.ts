@@ -23,6 +23,7 @@ export type SupplierHistoryItem = {
 
 export type Supplier = {
   id: string
+  code?: string
   name: string
   phone: string
   email?: string

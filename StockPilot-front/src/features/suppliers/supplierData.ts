@@ -155,3 +155,14 @@ export const suppliersData: Supplier[] = [
 export function getSupplierById(supplierId: string) {
   return suppliersData.find((supplier) => supplier.id === supplierId)
 }
+
+export function addSupplier(supplier: Supplier) {
+  const existingIndex = suppliersData.findIndex((item) => item.id === supplier.id)
+
+  if (existingIndex >= 0) {
+    suppliersData[existingIndex] = supplier
+    return
+  }
+
+  suppliersData.unshift(supplier)
+}
