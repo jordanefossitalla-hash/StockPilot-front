@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { formatDate, formatFcfa } from "../features/suppliers/supplierFormatters"
 import type { Supplier } from "../features/suppliers/supplierTypes"
-import { listSuppliers } from "../services/supplierService"
+import { deleteSupplier, listSuppliers } from "../services/supplierService"
 
 export function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -14,6 +14,8 @@ export function SuppliersPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [page, setPage] = useState(1)
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const PAGE_SIZE = 20
 
   useEffect(() => {
@@ -70,16 +72,31 @@ export function SuppliersPage() {
     suppliers.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
   const endRow = Math.min((pageSafe - 1) * PAGE_SIZE + suppliers.length, totalItems)
 
-  function confirmDeleteSupplier() {
+  async function confirmDeleteSupplier() {
     if (!supplierToDelete) {
       return
     }
 
-    setSuppliers((previous) =>
-      previous.filter((supplier) => supplier.id !== supplierToDelete.id),
-    )
-    setTotalItems((previous) => Math.max(previous - 1, 0))
-    setSupplierToDelete(null)
+    setDeleteError(null)
+    setIsDeleting(true)
+
+    try {
+      const deletedId = await deleteSupplier(supplierToDelete.id)
+
+      setSuppliers((previous) => previous.filter((supplier) => supplier.id !== deletedId))
+      setTotalItems((previous) => Math.max(previous - 1, 0))
+      setSupplierToDelete(null)
+
+      if (suppliers.length === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1))
+      }
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Suppression fournisseur impossible.",
+      )
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -380,10 +397,16 @@ export function SuppliersPage() {
             </p>
 
             <div className="modal-actions">
+              {deleteError ? <p className="form-error-banner">{deleteError}</p> : null}
+
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setSupplierToDelete(null)}
+                onClick={() => {
+                  setSupplierToDelete(null)
+                  setDeleteError(null)
+                }}
+                disabled={isDeleting}
               >
                 Annuler
               </button>
@@ -391,8 +414,9 @@ export function SuppliersPage() {
                 type="button"
                 className="btn btn-danger"
                 onClick={confirmDeleteSupplier}
+                disabled={isDeleting}
               >
-                Supprimer
+                {isDeleting ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </article>

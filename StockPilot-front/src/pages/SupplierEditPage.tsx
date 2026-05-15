@@ -23,9 +23,10 @@ export function SupplierEditPage() {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
+    mode: "onChange",
     defaultValues: {
       name: "",
       phone: "",
@@ -57,6 +58,7 @@ export function SupplierEditPage() {
         }
 
         setSupplier(result)
+        setSubmitError(null)
         reset({
           name: result.name,
           phone: result.phone,
@@ -111,10 +113,16 @@ export function SupplierEditPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null)
+
+    if (!isDirty) {
+      setSubmitError("Aucune modification detectee. Modifiez au moins un champ.")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      const updated = await updateSupplier(supplier.id, {
+      await updateSupplier(supplier.id, {
         name: values.name,
         phone: values.phone,
         email: values.email,
@@ -123,7 +131,10 @@ export function SupplierEditPage() {
         initialBalance: values.initialBalance,
       })
 
-      navigate(`/suppliers/${updated.id}`)
+      navigate("/suppliers", {
+        replace: true,
+        state: { notice: "Fournisseur modifie avec succes." },
+      })
     } catch (error) {
       const message =
         error instanceof Error
@@ -151,47 +162,61 @@ export function SupplierEditPage() {
         </div>
       </div>
 
-      <form className="client-form-card" onSubmit={onSubmit}>
-        <div className="client-form-grid">
-          <label className="field-block">
-            <span>Nom fournisseur *</span>
-            <input type="text" {...register("name")} />
-            {errors.name ? <small>{errors.name.message}</small> : null}
-          </label>
+      <form className="client-form-card supplier-form-card" onSubmit={onSubmit}>
+        <div className="supplier-form-layout">
+          <div className="supplier-form-row supplier-form-row-identity">
+            <label className="field-block supplier-field-block">
+              <span>Code fournisseur</span>
+              <input type="text" value={supplier.code ?? supplier.id} readOnly />
+              <small className="field-help">Code de référence utilisé côté API.</small>
+            </label>
 
-          <label className="field-block">
-            <span>Téléphone *</span>
-            <input type="tel" {...register("phone")} />
-            {errors.phone ? <small>{errors.phone.message}</small> : null}
-          </label>
+            <label className="field-block supplier-field-block supplier-field-block-wide">
+              <span>Nom fournisseur *</span>
+              <input type="text" {...register("name")} />
+              {errors.name ? <small>{errors.name.message}</small> : null}
+            </label>
+          </div>
 
-          <label className="field-block">
-            <span>Email</span>
-            <input type="email" {...register("email")} />
-            {errors.email ? <small>{errors.email.message}</small> : null}
-          </label>
+          <div className="supplier-form-row">
+            <label className="field-block supplier-field-block">
+              <span>Téléphone *</span>
+              <input type="tel" {...register("phone")} />
+              {errors.phone ? <small>{errors.phone.message}</small> : null}
+            </label>
 
-          <label className="field-block">
-            <span>Statut</span>
-            <select {...register("status")}>
-              <option value="active">Actif</option>
-              <option value="inactive">Inactif</option>
-            </select>
-            {errors.status ? <small>{errors.status.message}</small> : null}
-          </label>
+            <label className="field-block supplier-field-block">
+              <span>Email</span>
+              <input type="email" {...register("email")} />
+              {errors.email ? <small>{errors.email.message}</small> : null}
+            </label>
+          </div>
 
-          <label className="field-block">
-            <span>Solde initial (FCFA)</span>
-            <input
-              type="number"
-              step={1000}
-              {...register("initialBalance", { valueAsNumber: true })}
-            />
-            <small>Positif = avance chez le fournisseur, negatif = dette a regler.</small>
-            {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
-          </label>
+          <div className="supplier-form-row">
+            <label className="field-block supplier-field-block">
+              <span>Statut</span>
+              <select {...register("status")}>
+                <option value="active">Actif</option>
+                <option value="inactive">Inactif</option>
+              </select>
+              {errors.status ? <small>{errors.status.message}</small> : null}
+            </label>
 
-          <label className="field-block field-block-full">
+            <label className="field-block supplier-field-block">
+              <span>Solde courant (FCFA)</span>
+              <input
+                type="number"
+                step={1000}
+                {...register("initialBalance", { valueAsNumber: true })}
+              />
+              <small className="field-help">
+                Positif = avance chez le fournisseur, negatif = dette a regler.
+              </small>
+              {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
+            </label>
+          </div>
+
+          <label className="field-block supplier-field-block field-block-full">
             <span>Adresse</span>
             <textarea rows={4} {...register("address")} />
             {errors.address ? <small>{errors.address.message}</small> : null}
@@ -205,9 +230,13 @@ export function SupplierEditPage() {
             Liste fournisseurs
           </Link>
           <Link to={`/suppliers/${supplier.id}`} className="btn btn-ghost">
-            Retour au détail
+            Retour au detail
           </Link>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={isSubmitting || !isDirty}
+          >
             <Save size={16} />
             {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>

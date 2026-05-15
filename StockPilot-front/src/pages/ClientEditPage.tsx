@@ -23,10 +23,6 @@ export function ClientEditPage() {
 
   const client = (location.state as EditLocationState | null)?.client
 
-  if (!clientId || !client || client.id !== clientId) {
-    return <Navigate to="/clients" replace />
-  }
-
   const {
     register,
     handleSubmit,
@@ -43,6 +39,10 @@ export function ClientEditPage() {
       initialBalance: client?.debtTotal ?? 0,
     },
   })
+
+  if (!clientId || !client || client.id !== clientId) {
+    return <Navigate to="/clients" replace />
+  }
 
   const onSubmit = handleSubmit(async (values) => {
     setIsSubmitting(true)

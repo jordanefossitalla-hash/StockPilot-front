@@ -243,7 +243,9 @@ export async function createClient(payload: {
 
     return mappedClient
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Creation client impossible."))
+    throw new Error(resolveErrorMessage(error, "Creation client impossible."), {
+      cause: error,
+    })
   }
 }
 
@@ -284,7 +286,9 @@ export async function updateClient(
       balance: updated?.balance ?? payload.initialBalance,
     })
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Modification client impossible."))
+    throw new Error(resolveErrorMessage(error, "Modification client impossible."), {
+      cause: error,
+    })
   }
 }
 
@@ -316,6 +320,8 @@ export async function deleteClient(clientId: string): Promise<string> {
 
     return deletedId
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Suppression client impossible."))
+    throw new Error(resolveErrorMessage(error, "Suppression client impossible."), {
+      cause: error,
+    })
   }
 }

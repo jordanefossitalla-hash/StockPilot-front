@@ -175,7 +175,7 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 0 0.5rem;
-  height: 84px;
+  height: var(--header-h);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   gap: 0.35rem;
@@ -190,11 +190,45 @@ button {
   flex: 1;
 }
 
+.brand-image-lockup {
+  height: 42px;
+  width: auto;
+  max-width: 92px;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.18));
+  transition: opacity 0.2s ease, max-width 0.24s ease;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  opacity: 1;
+  transition: opacity 0.18s ease;
+}
+
+.brand-title {
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.brand-subtitle {
+  font-size: 0.68rem;
+  line-height: 1.1;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .brand-mark {
+  display: none;
   width: 56px;
   height: 56px;
   border-radius: 14px;
-  display: grid;
   place-items: center;
   background:
     radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.58), transparent 45%),
@@ -204,43 +238,17 @@ button {
   overflow: hidden;
 }
 
-.brand-image-full {
-  width: 82%;
-  height: auto;
-  max-width: none;
-  object-fit: contain;
-  object-position: center;
+.brand-image-mark {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
   display: block;
-  transform: scale(1.18);
+  transform: scale(1.02);
   filter:
-    drop-shadow(0 3px 10px rgba(15, 23, 42, 0.22))
-    drop-shadow(0 0 1px rgba(255, 255, 255, 0.7));
+    drop-shadow(0 3px 8px rgba(15, 23, 42, 0.2))
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.55));
   transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;
-}
-
-.brand-copy {
-  min-width: 0;
-  display: grid;
-  gap: 0.02rem;
-  line-height: 1.05;
-  transition: opacity 0.2s ease, transform 0.25s ease;
-}
-
-.brand-copy strong {
-  font-size: 1.03rem;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-}
-
-.brand-copy span {
-  font-size: 0.72rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.sidebar-collapsed .brand-image-full {
-  transform: scale(1.24);
 }
 
 .sidebar-collapsed .brand-logo {
@@ -249,16 +257,25 @@ button {
   width: 56px;
 }
 
-.sidebar-collapsed .brand-mark {
-  width: 50px;
-  height: 50px;
+.sidebar-collapsed .brand-image-lockup {
+  opacity: 0;
+  max-width: 0;
 }
 
 .sidebar-collapsed .brand-copy {
   opacity: 0;
-  transform: translateX(-4px);
   width: 0;
   overflow: hidden;
+}
+
+.sidebar-collapsed .brand-mark {
+  display: grid;
+  width: 50px;
+  height: 50px;
+}
+
+.sidebar-collapsed .brand-image-mark {
+  transform: scale(1.08);
 }
 
 .collapse-btn {
@@ -1714,6 +1731,35 @@ button {
   gap: 0.9rem;
 }
 
+.supplier-form-card {
+  gap: 1rem;
+}
+
+.supplier-form-layout {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.supplier-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.supplier-form-row-identity {
+  grid-template-columns: minmax(200px, 0.8fr) minmax(320px, 1.2fr);
+}
+
+.supplier-field-block {
+  align-content: start;
+  min-width: 0;
+}
+
+.supplier-field-block-wide {
+  min-width: 0;
+}
+
 .client-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1756,6 +1802,11 @@ button {
   font-weight: 600;
 }
 
+.field-block .field-help {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
 .field-block-full {
   grid-column: span 2;
 }
@@ -1772,6 +1823,17 @@ button {
   border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
   background: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-surface));
   color: var(--color-danger);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.form-success-banner {
+  margin-top: 0.9rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success-soft) 55%, var(--color-surface));
+  color: var(--color-success);
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
   font-weight: 600;
@@ -2171,6 +2233,11 @@ button {
   }
 
   .client-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .supplier-form-row,
+  .supplier-form-row-identity {
     grid-template-columns: 1fr;
   }
 
@@ -3077,24 +3144,19 @@ button {
 }
 
 .auth-brand-visual {
-  width: 76%;
-  height: auto;
+  width: 94%;
+  height: 94%;
   object-fit: contain;
-  transform: scale(1.22);
+  object-position: center;
+  transform: translateY(2px);
   filter:
-    drop-shadow(0 12px 26px rgba(15, 23, 42, 0.28))
-    drop-shadow(0 0 2px rgba(255, 255, 255, 0.75));
+    drop-shadow(0 10px 22px rgba(15, 23, 42, 0.22))
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.5));
   animation: authFloat 3.6s ease-in-out infinite;
 }
 
-.auth-brand-name {
-  font-size: clamp(1.3rem, 2.4vw, 1.65rem);
-  font-weight: 800;
-  letter-spacing: -0.018em;
-  color: color-mix(in srgb, var(--color-text) 84%, var(--color-brand));
-}
-
-:root[data-theme="dark"] .brand-image-full,
+:root[data-theme="dark"] .brand-image-lockup,
+:root[data-theme="dark"] .brand-image-mark,
 :root[data-theme="dark"] .auth-brand-visual {
   filter:
     drop-shadow(0 10px 24px rgba(2, 6, 23, 0.62))

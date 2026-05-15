@@ -1,6 +1,6 @@
 import { ArrowLeft, CreditCard, FilePenLine, PackagePlus, Search } from "lucide-react"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import { formatDate, formatFcfa } from "../features/suppliers/supplierFormatters"
 import type { Supplier, SupplierHistoryType } from "../features/suppliers/supplierTypes"
 import { getSupplierByIdApi } from "../services/supplierService"
@@ -19,6 +19,7 @@ function historyLabel(type: SupplierHistoryType) {
 
 export function SupplierDetailPage() {
   const { supplierId } = useParams<{ supplierId: string }>()
+  const location = useLocation()
   const [supplierState, setSupplierState] = useState<Supplier | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -38,6 +39,9 @@ export function SupplierDetailPage() {
   const [supplyModalOpen, setSupplyModalOpen] = useState(false)
 
   const [movementQuery, setMovementQuery] = useState("")
+
+  const notice =
+    (location.state as { notice?: string } | null)?.notice ?? null
 
   useEffect(() => {
     let isMounted = true
@@ -91,19 +95,26 @@ export function SupplierDetailPage() {
       return first.date.localeCompare(second.date)
     })
 
-    let runningBalance = supplierState?.debtTotal ?? 0
+    const startingBalance = supplierState?.debtTotal ?? 0
 
-    const withBalanceAscending = sortedAscending.map((entry) => {
+    const withBalanceAscending = sortedAscending.reduce<
+      Array<(typeof sortedAscending)[number] & { delta: number; runningBalance: number }>
+    >((accumulator, entry) => {
+      const previousBalance =
+        accumulator.length > 0
+          ? accumulator[accumulator.length - 1].runningBalance
+          : startingBalance
       const delta = entry.type === "payment" ? entry.amount : -entry.amount
+      const runningBalance = previousBalance + delta
 
-      runningBalance += delta
-
-      return {
+      accumulator.push({
         ...entry,
         delta,
         runningBalance,
-      }
-    })
+      })
+
+      return accumulator
+    }, [])
 
     return withBalanceAscending.reverse()
   }, [supplierState?.debtTotal, supplierState?.history])
@@ -252,6 +263,8 @@ export function SupplierDetailPage() {
           </Link>
         </div>
       </div>
+
+      {notice ? <p className="form-success-banner">{notice}</p> : null}
 
       <article className="client-detail-card">
         <div className="client-identity">

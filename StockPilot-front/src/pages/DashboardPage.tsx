@@ -138,7 +138,6 @@ export function DashboardPage() {
     const media = window.matchMedia("(max-width: 640px)")
     const listener = (event: MediaQueryListEvent) => setIsMobile(event.matches)
 
-    setIsMobile(media.matches)
     media.addEventListener("change", listener)
 
     return () => media.removeEventListener("change", listener)

@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react"
 import { NavLink } from "react-router-dom"
-import appLogo from "../assets/logo.png"
+import appLogo from "../assets/stockpilot-logo-retained.png"
 
 type NavItem = {
   to: string
@@ -87,12 +87,13 @@ export function AppSidebar({
         {/* Brand */}
         <div className="sidebar-brand">
           <div className="brand-logo">
-            <div className="brand-mark" aria-hidden="true">
-              <img src={appLogo} className="brand-image-full" alt="StockPilot" />
+            <img src={appLogo} className="brand-image-lockup" alt="StockPilot" />
+            <div className="brand-copy" aria-hidden="true">
+              <p className="brand-title">StockPilot</p>
+              <p className="brand-subtitle">Gestion des ventes</p>
             </div>
-            <div className="brand-copy" aria-hidden={isCollapsed}>
-              <strong>StockPilot</strong>
-              <span>Gestion commerciale</span>
+            <div className="brand-mark" aria-hidden="true">
+              <img src={appLogo} className="brand-image-mark" alt="" />
             </div>
           </div>
           <button

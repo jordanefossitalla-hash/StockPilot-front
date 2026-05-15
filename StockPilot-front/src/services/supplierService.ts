@@ -58,6 +58,12 @@ type GetSupplierResponse = {
   data?: BackendSupplier
 }
 
+type DeleteSupplierResponse = {
+  data?: {
+    id?: string
+  }
+}
+
 type ListSuppliersParams = {
   status?: SupplierStatus
   search?: string
@@ -317,6 +323,27 @@ export async function updateSupplier(
     })
   } catch (error) {
     throw new Error(resolveErrorMessage(error, "Mise à jour fournisseur impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function deleteSupplier(supplierId: string): Promise<string> {
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.delete<DeleteSupplierResponse>(`${apiBaseUrl}/suppliers/${supplierId}`, {
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    const deletedId = response.data?.data?.id
+    if (!deletedId) {
+      throw new Error("Réponse suppression fournisseur invalide du serveur.")
+    }
+
+    return deletedId
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Suppression fournisseur impossible."), {
       cause: error,
     })
   }

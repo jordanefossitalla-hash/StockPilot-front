@@ -114,7 +114,9 @@ async function login(credentials: LoginCredentials): Promise<AuthSession> {
 
     return parseAuthSession(response.data, credentials.phone)
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Connexion impossible."))
+    throw new Error(resolveErrorMessage(error, "Connexion impossible."), {
+      cause: error,
+    })
   }
 }
 
@@ -130,7 +132,9 @@ async function register(payload: RegisterPayload): Promise<AuthSession> {
 
     return parseAuthSession(response.data, payload.phone)
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Inscription impossible."))
+    throw new Error(resolveErrorMessage(error, "Inscription impossible."), {
+      cause: error,
+    })
   }
 }
 
@@ -144,7 +148,12 @@ async function refresh(refreshToken: string): Promise<Pick<AuthSession, "token" 
 
     return parseRefreshTokens(response.data)
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Rafraîchissement de session impossible."))
+    throw new Error(
+      resolveErrorMessage(error, "Rafraîchissement de session impossible."),
+      {
+        cause: error,
+      },
+    )
   }
 }
 
@@ -156,7 +165,9 @@ async function logout(refreshToken: string): Promise<void> {
       refreshToken: refreshToken.trim(),
     })
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Déconnexion impossible."))
+    throw new Error(resolveErrorMessage(error, "Déconnexion impossible."), {
+      cause: error,
+    })
   }
 }
 
@@ -172,7 +183,9 @@ async function me(token: string): Promise<AuthUser> {
 
     return parseMeUser(response.data)
   } catch (error) {
-    throw new Error(resolveErrorMessage(error, "Récupération du profil impossible."))
+    throw new Error(resolveErrorMessage(error, "Récupération du profil impossible."), {
+      cause: error,
+    })
   }
 }
 

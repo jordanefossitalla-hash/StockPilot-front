@@ -63,11 +63,17 @@ export function SupplierCreatePage() {
       return
     }
 
+    const normalizedCode = supplierCode.trim().toUpperCase()
+    if (!/^SUP-\d{4,}$/.test(normalizedCode)) {
+      setSubmitError("Code fournisseur invalide. Format attendu: SUP-0001")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
       await createSupplier({
-        code: supplierCode,
+        code: normalizedCode,
         name: values.name,
         phone: values.phone,
         email: values.email,
@@ -103,58 +109,71 @@ export function SupplierCreatePage() {
         </div>
       </div>
 
-      <form className="client-form-card" onSubmit={onSubmit}>
-        <div className="client-form-grid">
-          <label className="field-block">
-            <span>Code fournisseur</span>
-            <input
-              type="text"
-              value={isLoadingCode ? "Génération..." : supplierCode}
-              disabled
-              readOnly
-            />
-          </label>
+      <form className="client-form-card supplier-form-card" onSubmit={onSubmit}>
+        <div className="supplier-form-layout">
+          <div className="supplier-form-row supplier-form-row-identity">
+            <label className="field-block supplier-field-block">
+              <span>Code fournisseur</span>
+              <input
+                type="text"
+                value={supplierCode}
+                placeholder={isLoadingCode ? "Génération..." : "SUP-0001"}
+                onChange={(event) => setSupplierCode(event.target.value.toUpperCase())}
+                disabled={isLoadingCode}
+                maxLength={20}
+              />
+              <small className="field-help">
+                Vous pouvez modifier le code proposé (format: SUP-0001).
+              </small>
+            </label>
 
-          <label className="field-block">
-            <span>Nom fournisseur *</span>
-            <input type="text" placeholder="Ex: TechSource CI" {...register("name")} />
-            {errors.name ? <small>{errors.name.message}</small> : null}
-          </label>
+            <label className="field-block supplier-field-block supplier-field-block-wide">
+              <span>Nom fournisseur *</span>
+              <input type="text" placeholder="Ex: TechSource CI" {...register("name")} />
+              {errors.name ? <small>{errors.name.message}</small> : null}
+            </label>
+          </div>
 
-          <label className="field-block">
-            <span>Téléphone *</span>
-            <input type="tel" placeholder="Ex: +2250700000000" {...register("phone")} />
-            {errors.phone ? <small>{errors.phone.message}</small> : null}
-          </label>
+          <div className="supplier-form-row">
+            <label className="field-block supplier-field-block">
+              <span>Téléphone *</span>
+              <input type="tel" placeholder="Ex: +2250700000000" {...register("phone")} />
+              {errors.phone ? <small>{errors.phone.message}</small> : null}
+            </label>
 
-          <label className="field-block">
-            <span>Email</span>
-            <input type="email" placeholder="contact@fournisseur.ci" {...register("email")} />
-            {errors.email ? <small>{errors.email.message}</small> : null}
-          </label>
+            <label className="field-block supplier-field-block">
+              <span>Email</span>
+              <input type="email" placeholder="contact@fournisseur.ci" {...register("email")} />
+              {errors.email ? <small>{errors.email.message}</small> : null}
+            </label>
+          </div>
 
-          <label className="field-block">
-            <span>Statut</span>
-            <select {...register("status")}>
-              <option value="active">Actif</option>
-              <option value="inactive">Inactif</option>
-            </select>
-            {errors.status ? <small>{errors.status.message}</small> : null}
-          </label>
+          <div className="supplier-form-row">
+            <label className="field-block supplier-field-block">
+              <span>Statut</span>
+              <select {...register("status")}>
+                <option value="active">Actif</option>
+                <option value="inactive">Inactif</option>
+              </select>
+              {errors.status ? <small>{errors.status.message}</small> : null}
+            </label>
 
-          <label className="field-block">
-            <span>Solde initial (FCFA)</span>
-            <input
-              type="number"
-              step={1000}
-              placeholder="Ex: 0, 80000 ou -15000"
-              {...register("initialBalance", { valueAsNumber: true })}
-            />
-            <small>Positif = avance chez le fournisseur, negatif = dette a regler.</small>
-            {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
-          </label>
+            <label className="field-block supplier-field-block">
+              <span>Solde initial (FCFA)</span>
+              <input
+                type="number"
+                step={1000}
+                placeholder="Ex: 0, 80000 ou -15000"
+                {...register("initialBalance", { valueAsNumber: true })}
+              />
+              <small className="field-help">
+                Positif = avance chez le fournisseur, negatif = dette a regler.
+              </small>
+              {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
+            </label>
+          </div>
 
-          <label className="field-block field-block-full">
+          <label className="field-block supplier-field-block field-block-full">
             <span>Adresse</span>
             <textarea
               rows={4}

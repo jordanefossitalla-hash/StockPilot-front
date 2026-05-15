@@ -1,6 +1,6 @@
 import { ShieldCheck } from "lucide-react"
 import type { ReactNode } from "react"
-import appLogo from "../assets/logo.png"
+import appLogo from "../assets/stockpilot-logo-retained.png"
 
 type AuthLayoutProps = {
   title: string
@@ -36,7 +36,6 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
                   loading="lazy"
                 />
               </div>
-              <p className="auth-brand-name">StockPilot</p>
             </div>
           </div>
         </aside>
