@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Save } from "lucide-react"
+import { ArrowLeft, Save } from "lucide-react"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
@@ -7,10 +7,12 @@ import {
   categoryFormSchema,
   type CategoryFormValues,
 } from "../features/categories/categorySchemas"
+import { createCategory } from "../services/categoryService"
 
 export function CategoryCreatePage() {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
@@ -25,10 +27,20 @@ export function CategoryCreatePage() {
     },
   })
 
-  const onSubmit = handleSubmit(async () => {
+  const onSubmit = handleSubmit(async (values) => {
+    setSubmitError(null)
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate("/categories")
+
+    try {
+      await createCategory(values)
+      navigate("/categories")
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Création catégorie impossible."
+      setSubmitError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -38,9 +50,18 @@ export function CategoryCreatePage() {
           <h2 className="page-title">Ajouter catégorie</h2>
           <p className="page-subtitle">Création d une nouvelle catégorie.</p>
         </div>
+
+        <div className="clients-actions">
+          <Link to="/categories" className="btn btn-ghost">
+            <ArrowLeft size={16} />
+            Retour à la liste
+          </Link>
+        </div>
       </div>
 
       <form className="client-form-card" onSubmit={onSubmit}>
+        {submitError ? <p className="form-error-banner">{submitError}</p> : null}
+
         <div className="client-form-grid">
           <label className="field-block">
             <span>Nom catégorie *</span>

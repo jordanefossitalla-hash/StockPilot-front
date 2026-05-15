@@ -1,56 +1,103 @@
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { categoriesData } from "../features/categories/categoryData"
 import { formatDate } from "../features/categories/categoryFormatters"
 import type { Category } from "../features/categories/categoryTypes"
+import { deleteCategory, listCategories } from "../services/categoryService"
 
 export function CategoriesPage() {
-  const [categories, setCategories] = useState(categoriesData)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [totalItems, setTotalItems] = useState(0)
   const [query, setQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
   const [page, setPage] = useState(1)
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
-  const PAGE_SIZE = 6
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const PAGE_SIZE = 20
 
-  const filteredCategories = useMemo(() => {
-    const search = query.trim().toLowerCase()
+  useEffect(() => {
+    let isMounted = true
 
-    return categories.filter((category) => {
-      const statusOk =
-        statusFilter === "all" ? true : category.status === statusFilter
-      const searchOk =
-        search.length === 0
-          ? true
-          : category.name.toLowerCase().includes(search) ||
-            category.description.toLowerCase().includes(search) ||
-            category.id.toLowerCase().includes(search)
+    async function fetchCategories() {
+      setIsLoading(true)
+      setLoadError(null)
 
-      return statusOk && searchOk
-    })
-  }, [categories, query, statusFilter])
+      try {
+        const response = await listCategories({
+          status: statusFilter === "all" ? undefined : statusFilter,
+          search: query,
+          page,
+          limit: PAGE_SIZE,
+        })
 
-  const totalPages = Math.max(1, Math.ceil(filteredCategories.length / PAGE_SIZE))
+        if (!isMounted) {
+          return
+        }
+
+        setCategories(response.data)
+        setTotalItems(response.meta.total)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Chargement catégories impossible."
+        setLoadError(message)
+        setCategories([])
+        setTotalItems(0)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchCategories()
+
+    return () => {
+      isMounted = false
+    }
+  }, [page, query, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages)
-
-  const currentPageCategories = useMemo(() => {
-    const start = (pageSafe - 1) * PAGE_SIZE
-    return filteredCategories.slice(start, start + PAGE_SIZE)
-  }, [filteredCategories, pageSafe])
+  const currentPageCategories = categories
 
   const startRow =
-    filteredCategories.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
-  const endRow = Math.min(pageSafe * PAGE_SIZE, filteredCategories.length)
+    categories.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
+  const endRow = Math.min((pageSafe - 1) * PAGE_SIZE + categories.length, totalItems)
 
-  function confirmDeleteCategory() {
+  async function confirmDeleteCategory() {
     if (!categoryToDelete) {
       return
     }
 
-    setCategories((previous) =>
-      previous.filter((category) => category.id !== categoryToDelete.id),
-    )
-    setCategoryToDelete(null)
+    setDeleteError(null)
+    setIsDeleting(true)
+
+    try {
+      const deletedId = await deleteCategory(categoryToDelete.id)
+
+      setCategories((previous) =>
+        previous.filter((category) => category.id !== deletedId),
+      )
+      setTotalItems((previous) => Math.max(previous - 1, 0))
+      setCategoryToDelete(null)
+
+      if (categories.length === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1))
+      }
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Suppression catégorie impossible.",
+      )
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -88,7 +135,7 @@ export function CategoriesPage() {
           <select
             value={statusFilter}
             onChange={(event) => {
-              setStatusFilter(event.target.value)
+              setStatusFilter(event.target.value as "all" | "active" | "inactive")
               setPage(1)
             }}
           >
@@ -101,9 +148,11 @@ export function CategoriesPage() {
 
       <div className="clients-toolbar">
         <p className="clients-page-indicator">
-          {startRow}-{endRow} sur {filteredCategories.length}
+          {startRow}-{endRow} sur {totalItems}
         </p>
       </div>
+
+      {loadError ? <p className="form-error-banner">{loadError}</p> : null}
 
       <div className="table-wrap">
         <table className="clients-table">
@@ -162,10 +211,18 @@ export function CategoriesPage() {
               </tr>
             ))}
 
-            {currentPageCategories.length === 0 ? (
+            {!isLoading && currentPageCategories.length === 0 ? (
               <tr>
                 <td colSpan={6} className="clients-empty-row">
                   Aucune catégorie trouvée.
+                </td>
+              </tr>
+            ) : null}
+
+            {isLoading ? (
+              <tr>
+                <td colSpan={6} className="clients-empty-row">
+                  Chargement des catégories...
                 </td>
               </tr>
             ) : null}
@@ -291,10 +348,16 @@ export function CategoriesPage() {
             </p>
 
             <div className="modal-actions">
+              {deleteError ? <p className="form-error-banner">{deleteError}</p> : null}
+
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setCategoryToDelete(null)}
+                onClick={() => {
+                  setCategoryToDelete(null)
+                  setDeleteError(null)
+                }}
+                disabled={isDeleting}
               >
                 Annuler
               </button>
@@ -302,8 +365,9 @@ export function CategoriesPage() {
                 type="button"
                 className="btn btn-danger"
                 onClick={confirmDeleteCategory}
+                disabled={isDeleting}
               >
-                Supprimer
+                {isDeleting ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </article>

@@ -25,8 +25,10 @@ export function formatDate(value: string) {
   return dateFormatter.format(new Date(value))
 }
 
-export function formatProductCategory(
-  category: keyof typeof categoryLabelMap,
-): string {
-  return categoryLabelMap[category]
+export function formatProductCategory(category: string): string {
+  if (category in categoryLabelMap) {
+    return categoryLabelMap[category as keyof typeof categoryLabelMap]
+  }
+
+  return category
 }

@@ -1,42 +1,133 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeft, Save } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom"
-import { getCategoryById } from "../features/categories/categoryData"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import {
   categoryFormSchema,
   type CategoryFormValues,
 } from "../features/categories/categorySchemas"
+import type { Category } from "../features/categories/categoryTypes"
+import { getCategoryByIdApi, updateCategory } from "../services/categoryService"
 
 export function CategoryEditPage() {
   const navigate = useNavigate()
   const { categoryId } = useParams<{ categoryId: string }>()
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const category = categoryId ? getCategoryById(categoryId) : undefined
+  const [category, setCategory] = useState<Category | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    reset,
+    formState: { errors, isDirty },
   } = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
+    mode: "onChange",
     defaultValues: {
-      name: category?.name ?? "",
-      description: category?.description ?? "",
-      status: category?.status ?? "active",
+      name: "",
+      description: "",
+      status: "active",
     },
   })
 
-  if (!category) {
-    return <Navigate to="/categories" replace />
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadCategory() {
+      if (!categoryId) {
+        setLoadError("Catégorie introuvable.")
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const result = await getCategoryByIdApi(categoryId)
+
+        if (!isMounted) {
+          return
+        }
+
+        setCategory(result)
+        setSubmitError(null)
+        reset({
+          name: result.name,
+          description: result.description,
+          status: result.status,
+        })
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const message = error instanceof Error ? error.message : "Catégorie introuvable."
+        setLoadError(message)
+        setCategory(null)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadCategory()
+
+    return () => {
+      isMounted = false
+    }
+  }, [categoryId, reset])
+
+  if (isLoading) {
+    return (
+      <section className="page clients-page">
+        <p className="clients-empty-row">Chargement de la catégorie...</p>
+      </section>
+    )
   }
 
-  const onSubmit = handleSubmit(async () => {
+  if (loadError || !category) {
+    return (
+      <section className="page clients-page">
+        <p className="form-error-banner">{loadError ?? "Catégorie introuvable."}</p>
+        <div className="clients-actions">
+          <Link to="/categories" className="btn btn-ghost">
+            <ArrowLeft size={16} />
+            Retour à la liste
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
+  const onSubmit = handleSubmit(async (values) => {
+    setSubmitError(null)
+
+    if (!isDirty) {
+      setSubmitError("Aucune modification detectee. Modifiez au moins un champ.")
+      return
+    }
+
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate("/categories")
+
+    try {
+      await updateCategory(category.id, values)
+      navigate("/categories", {
+        replace: true,
+        state: { notice: "Catégorie modifiée avec succès." },
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Mise à jour catégorie impossible."
+      setSubmitError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -56,6 +147,8 @@ export function CategoryEditPage() {
       </div>
 
       <form className="client-form-card" onSubmit={onSubmit}>
+        {submitError ? <p className="form-error-banner">{submitError}</p> : null}
+
         <div className="client-form-grid">
           <label className="field-block">
             <span>Nom catégorie *</span>
@@ -83,7 +176,11 @@ export function CategoryEditPage() {
           <Link to="/categories" className="btn btn-ghost">
             Liste catégories
           </Link>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={isSubmitting || !isDirty}
+          >
             <Save size={16} />
             {isSubmitting ? "Enregistrement..." : "Enregistrer"}
           </button>

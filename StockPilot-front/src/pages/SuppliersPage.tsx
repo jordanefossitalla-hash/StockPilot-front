@@ -136,7 +136,7 @@ export function SuppliersPage() {
           <select
             value={statusFilter}
             onChange={(event) => {
-              setStatusFilter(event.target.value)
+              setStatusFilter(event.target.value as "all" | "active" | "inactive")
               setPage(1)
             }}
           >

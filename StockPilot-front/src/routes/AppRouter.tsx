@@ -14,7 +14,6 @@ import { NotFoundPage } from "../pages/NotFoundPage"
 import { OrdersPage } from "../pages/OrdersPage"
 import { RegisterPage } from "../pages/RegisterPage"
 import { ProductCreatePage } from "../pages/ProductCreatePage"
-import { ProductDetailPage } from "../pages/ProductDetailPage"
 import { ProductEditPage } from "../pages/ProductEditPage"
 import { ProductsPage } from "../pages/ProductsPage"
 import { ReportsPage } from "../pages/ReportsPage"
@@ -57,8 +56,8 @@ export function AppRouter() {
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/products/new" element={<ProductCreatePage />} />
-            <Route path="/products/:productId" element={<ProductDetailPage />} />
             <Route path="/products/:productId/edit" element={<ProductEditPage />} />
+            <Route path="/products/:productId" element={<Navigate to="/products" replace />} />
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/categories/new" element={<CategoryCreatePage />} />
             <Route path="/categories/:categoryId/edit" element={<CategoryEditPage />} />

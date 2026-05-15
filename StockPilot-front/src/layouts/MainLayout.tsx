@@ -52,10 +52,6 @@ function resolvePageTitle(pathname: string) {
     return "Modifier produit"
   }
 
-  if (/^\/products\/[^/]+$/.test(pathname)) {
-    return "Détail produit"
-  }
-
   if (/^\/categories\/[^/]+\/edit$/.test(pathname)) {
     return "Modifier catégorie"
   }

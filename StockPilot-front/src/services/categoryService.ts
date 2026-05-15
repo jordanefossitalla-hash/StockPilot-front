@@ -1,0 +1,288 @@
+import axios from "axios"
+import type { Category, CategoryStatus } from "../features/categories/categoryTypes"
+import { useAuthStore } from "../store/authStore"
+
+const apiBaseUrl =
+  (import.meta.env.VITE_API_BASE_URL?.trim() ||
+    "https://api.stockpilots.net/api/v1")
+    .replace(/\/+$/, "")
+
+type BackendCategoryStatus = "ACTIVE" | "INACTIVE"
+
+type BackendCategory = {
+  id?: string
+  name?: string
+  description?: string
+  status?: BackendCategoryStatus
+  productsCount?: number
+  productCount?: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+type CategoryMutationPayload = {
+  name: string
+  description: string
+  status: BackendCategoryStatus
+}
+
+type ListCategoriesResponse = {
+  data?: BackendCategory[]
+  meta?: {
+    page?: number
+    limit?: number
+    total?: number
+  }
+}
+
+type GetCategoryResponse = {
+  data?: BackendCategory
+}
+
+type DeleteCategoryResponse = {
+  data?: {
+    id?: string
+  }
+}
+
+export type ListCategoriesParams = {
+  status?: CategoryStatus
+  search?: string
+  page?: number
+  limit?: number
+}
+
+export type ListCategoriesResult = {
+  data: Category[]
+  meta: {
+    page: number
+    limit: number
+    total: number
+  }
+}
+
+function resolveErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const responseData = error.response?.data as
+      | { message?: string | string[] }
+      | undefined
+    const apiMessage = responseData?.message
+
+    if (typeof apiMessage === "string" && apiMessage.trim()) {
+      return apiMessage
+    }
+
+    if (Array.isArray(apiMessage)) {
+      const joinedMessage = apiMessage.filter(Boolean).join(" ").trim()
+      if (joinedMessage) {
+        return joinedMessage
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
+}
+
+function mapStatusToBackend(status: CategoryStatus): BackendCategoryStatus {
+  return status === "inactive" ? "INACTIVE" : "ACTIVE"
+}
+
+function mapStatusToCategory(status?: BackendCategoryStatus): CategoryStatus {
+  return status === "INACTIVE" ? "inactive" : "active"
+}
+
+function mapBackendCategory(item: BackendCategory): Category {
+  if (!item.id || !item.name || !item.description) {
+    throw new Error("Réponse catégorie invalide du serveur.")
+  }
+
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    status: mapStatusToCategory(item.status),
+    productsCount: Number(item.productsCount ?? item.productCount ?? 0) || 0,
+    createdAt: item.createdAt ?? new Date().toISOString(),
+  }
+}
+
+function getAuthHeader(token?: string) {
+  if (!token) {
+    return undefined
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+  }
+}
+
+async function executeWithRefreshRetry<T>(
+  run: (token?: string) => Promise<T>,
+  requireToken: boolean,
+): Promise<T> {
+  const store = useAuthStore.getState()
+
+  if (requireToken && !store.token) {
+    throw new Error("Session expirée. Veuillez vous reconnecter.")
+  }
+
+  try {
+    return await run(store.token ?? undefined)
+  } catch (error) {
+    if (!axios.isAxiosError(error) || error.response?.status !== 401 || !store.refreshToken) {
+      throw error
+    }
+
+    const refreshedToken = await useAuthStore.getState().refreshSession()
+    return run(refreshedToken)
+  }
+}
+
+export async function listCategories(
+  params: ListCategoriesParams = {},
+): Promise<ListCategoriesResult> {
+  const page = Math.max(1, params.page ?? 1)
+  const limit = Math.min(100, Math.max(1, params.limit ?? 20))
+
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      const result = await axios.get<ListCategoriesResponse>(`${apiBaseUrl}/categories`, {
+        params: {
+          page,
+          limit,
+          search: params.search?.trim() || undefined,
+          status: params.status ? mapStatusToBackend(params.status) : undefined,
+        },
+        headers: getAuthHeader(token),
+      })
+
+      return result.data
+    }, false)
+
+    const items = (response.data ?? []).map(mapBackendCategory)
+    const meta = {
+      page: response.meta?.page ?? page,
+      limit: response.meta?.limit ?? limit,
+      total: response.meta?.total ?? items.length,
+    }
+
+    return {
+      data: items,
+      meta,
+    }
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Chargement catégories impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function getCategoryByIdApi(categoryId: string): Promise<Category> {
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.get<GetCategoryResponse>(`${apiBaseUrl}/categories/${categoryId}`, {
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    return mapBackendCategory(response.data?.data ?? {})
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Catégorie introuvable."), {
+      cause: error,
+    })
+  }
+}
+
+export async function createCategory(payload: {
+  name: string
+  description: string
+  status: CategoryStatus
+}): Promise<Category> {
+  const requestBody: CategoryMutationPayload = {
+    name: payload.name.trim(),
+    description: payload.description.trim(),
+    status: mapStatusToBackend(payload.status),
+  }
+
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.post<GetCategoryResponse>(`${apiBaseUrl}/categories`, requestBody, {
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    const created = response.data?.data
+    return mapBackendCategory({
+      ...created,
+      name: created?.name ?? requestBody.name,
+      description: created?.description ?? requestBody.description,
+      status: created?.status ?? requestBody.status,
+      createdAt: created?.createdAt ?? new Date().toISOString(),
+    })
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Création catégorie impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function updateCategory(
+  categoryId: string,
+  payload: {
+    name: string
+    description: string
+    status: CategoryStatus
+  },
+): Promise<Category> {
+  const requestBody: CategoryMutationPayload = {
+    name: payload.name.trim(),
+    description: payload.description.trim(),
+    status: mapStatusToBackend(payload.status),
+  }
+
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.patch<GetCategoryResponse>(
+        `${apiBaseUrl}/categories/${categoryId}`,
+        requestBody,
+        {
+          headers: getAuthHeader(token),
+        },
+      )
+    }, false)
+
+    const updated = response.data?.data
+    return mapBackendCategory({
+      ...updated,
+      id: updated?.id ?? categoryId,
+      name: updated?.name ?? requestBody.name,
+      description: updated?.description ?? requestBody.description,
+      status: updated?.status ?? requestBody.status,
+      createdAt: updated?.createdAt ?? new Date().toISOString(),
+    })
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Mise à jour catégorie impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function deleteCategory(categoryId: string): Promise<string> {
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.delete<DeleteCategoryResponse>(`${apiBaseUrl}/categories/${categoryId}`, {
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    return response.data?.data?.id ?? categoryId
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Suppression catégorie impossible."), {
+      cause: error,
+    })
+  }
+}

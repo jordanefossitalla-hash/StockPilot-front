@@ -1,20 +1,28 @@
-import type { Product } from "./productTypes"
-
 export type ProductStockStatus = "in-stock" | "low-stock" | "out-of-stock"
 
-export function getProductStockStatus(quantity: number): ProductStockStatus {
+type ProductStockMetrics = {
+  quantity: number
+  purchasePrice: number
+  salePrice: number
+  stockMinThreshold?: number
+}
+
+export function getProductStockStatus(
+  quantity: number,
+  stockMinThreshold = 5,
+): ProductStockStatus {
   if (quantity <= 0) {
     return "out-of-stock"
   }
 
-  if (quantity <= 5) {
+  if (quantity <= Math.max(stockMinThreshold, 0)) {
     return "low-stock"
   }
 
   return "in-stock"
 }
 
-export function getProductStats(products: Product[]) {
+export function getProductStats(products: ProductStockMetrics[]) {
   const totalStockUnits = products.reduce((sum, product) => sum + product.quantity, 0)
   const totalStockValuePurchase = products.reduce(
     (sum, product) => sum + product.purchasePrice * product.quantity,
@@ -25,10 +33,12 @@ export function getProductStats(products: Product[]) {
     0,
   )
   const lowStockCount = products.filter(
-    (product) => getProductStockStatus(product.quantity) === "low-stock",
+    (product) =>
+      getProductStockStatus(product.quantity, product.stockMinThreshold) === "low-stock",
   ).length
   const outOfStockCount = products.filter(
-    (product) => getProductStockStatus(product.quantity) === "out-of-stock",
+    (product) =>
+      getProductStockStatus(product.quantity, product.stockMinThreshold) === "out-of-stock",
   ).length
 
   return {

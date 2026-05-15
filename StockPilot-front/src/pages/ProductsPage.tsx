@@ -1,108 +1,259 @@
-import {
-  ArrowDownAZ,
-  ArrowUpAZ,
-  Eye,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  X,
-} from "lucide-react"
-import { useMemo, useState } from "react"
-import { Link } from "react-router-dom"
-import { productsData } from "../features/products/productData"
+import { Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import type { Category } from "../features/categories/categoryTypes"
 import {
   formatDate,
   formatFcfa,
   formatProductCategory,
 } from "../features/products/productFormatters"
 import { getProductStats, getProductStockStatus } from "../features/products/productStats"
-import type { Product } from "../features/products/productTypes"
+import { listCategories } from "../services/categoryService"
+import {
+  deleteProduct,
+  getProductByIdApi,
+  listProducts,
+  type ProductDetail,
+  type ProductListItem,
+} from "../services/productService"
+
+type ProductRow = ProductListItem & {
+  categoryName: string
+}
 
 export function ProductsPage() {
-  const [products, setProducts] = useState(productsData)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [products, setProducts] = useState<ProductRow[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [totalItems, setTotalItems] = useState(0)
   const [query, setQuery] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [stockFilter, setStockFilter] = useState("all")
-  const [sortField, setSortField] = useState("name")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [page, setPage] = useState(1)
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
-  const PAGE_SIZE = 6
+  const [productToDelete, setProductToDelete] = useState<ProductRow | null>(null)
+  const [detailProductId, setDetailProductId] = useState<string | null>(null)
+  const [detailProduct, setDetailProduct] = useState<ProductDetail | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const PAGE_SIZE = 20
 
-  const filteredProducts = useMemo(() => {
-    const search = query.trim().toLowerCase()
+  useEffect(() => {
+    let isMounted = true
 
-    return products.filter((product) => {
-      const stockStatus = getProductStockStatus(product.quantity)
-      const categoryOk =
-        categoryFilter === "all" ? true : product.category === categoryFilter
-      const stockOk = stockFilter === "all" ? true : stockStatus === stockFilter
-      const searchOk =
-        search.length === 0
-          ? true
-          : product.name.toLowerCase().includes(search) ||
-            product.id.toLowerCase().includes(search) ||
-            formatProductCategory(product.category).toLowerCase().includes(search)
+    async function fetchCategories() {
+      setIsLoadingCategories(true)
 
-      return categoryOk && stockOk && searchOk
-    })
-  }, [products, query, categoryFilter, stockFilter])
+      try {
+        const response = await listCategories({ page: 1, limit: 100 })
 
-  const sortedProducts = useMemo(() => {
-    const sorted = [...filteredProducts]
+        if (!isMounted) {
+          return
+        }
 
-    sorted.sort((first, second) => {
-      const order = sortDirection === "asc" ? 1 : -1
+        setCategories(response.data)
+      } catch {
+        if (!isMounted) {
+          return
+        }
 
-      if (sortField === "name") {
-        return first.name.localeCompare(second.name) * order
+        setCategories([])
+      } finally {
+        if (isMounted) {
+          setIsLoadingCategories(false)
+        }
       }
+    }
 
-      if (sortField === "salePrice") {
-        return (first.salePrice - second.salePrice) * order
+    fetchCategories()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function fetchProducts() {
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const response = await listProducts({
+          search: query,
+          categoryId: categoryFilter === "all" ? undefined : categoryFilter,
+          status: "active",
+          page,
+          limit: PAGE_SIZE,
+        })
+
+        if (!isMounted) {
+          return
+        }
+
+        setProducts(
+          response.data.map((product) => {
+            const categoryName =
+              categories.find((category) => category.id === product.categoryId)?.name ??
+              product.categoryId
+
+            return {
+              ...product,
+              categoryName,
+            }
+          }),
+        )
+        setTotalItems(response.meta.total)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Chargement produits impossible."
+        setLoadError(message)
+        setProducts([])
+        setTotalItems(0)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
+    }
 
-      if (sortField === "purchasePrice") {
-        return (first.purchasePrice - second.purchasePrice) * order
-      }
+    fetchProducts()
 
-      if (sortField === "quantity") {
-        return (first.quantity - second.quantity) * order
-      }
+    return () => {
+      isMounted = false
+    }
+  }, [categories, categoryFilter, page, query])
 
-      return first.createdAt.localeCompare(second.createdAt) * order
-    })
+  useEffect(() => {
+    const state = location.state as { notice?: string } | null
+    const message = state?.notice
 
-    return sorted
-  }, [filteredProducts, sortField, sortDirection])
+    if (!message) {
+      return
+    }
 
-  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PAGE_SIZE))
+    setNotice(message)
+    navigate(location.pathname + location.search, { replace: true, state: null })
+  }, [location.pathname, location.search, location.state, navigate])
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages)
+  const currentPageProducts = products
 
-  const currentPageProducts = useMemo(() => {
-    const start = (pageSafe - 1) * PAGE_SIZE
-    return sortedProducts.slice(start, start + PAGE_SIZE)
-  }, [sortedProducts, pageSafe])
+  const stats = useMemo(
+    () =>
+      getProductStats(
+        products.map((product) => ({
+          quantity: product.stockQuantity,
+          purchasePrice: product.costPrice,
+          salePrice: product.salePrice,
+          stockMinThreshold: product.stockMinThreshold,
+        })),
+      ),
+    [products],
+  )
 
-  const stats = useMemo(() => getProductStats(products), [products])
+  const startRow = products.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
+  const endRow = Math.min((pageSafe - 1) * PAGE_SIZE + products.length, totalItems)
 
-  const startRow = sortedProducts.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
-  const endRow = Math.min(pageSafe * PAGE_SIZE, sortedProducts.length)
-
-  function handleDeleteConfirm() {
+  async function handleDeleteConfirm() {
     if (!productToDelete) {
       return
     }
 
-    setProducts((previous) =>
-      previous.filter((product) => product.id !== productToDelete.id),
-    )
-    setProductToDelete(null)
+    setDeleteError(null)
+    setIsDeleting(true)
+
+    try {
+      const deletedId = await deleteProduct(productToDelete.id)
+
+      setProducts((previous) =>
+        previous.filter((product) => product.id !== deletedId),
+      )
+      setProductToDelete(null)
+      setTotalItems((previous) => Math.max(previous - 1, 0))
+      setNotice("Produit supprime avec succes.")
+
+      if (products.length === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1))
+      }
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Suppression produit impossible.",
+      )
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
-  function getStockBadge(quantity: number) {
-    const status = getProductStockStatus(quantity)
+  useEffect(() => {
+    let isMounted = true
+
+    async function fetchProductDetail() {
+      if (!detailProductId) {
+        return
+      }
+
+      setIsDetailLoading(true)
+      setDetailError(null)
+
+      try {
+        const response = await getProductByIdApi(detailProductId)
+
+        if (!isMounted) {
+          return
+        }
+
+        setDetailProduct(response)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setDetailError(
+          error instanceof Error ? error.message : "Chargement détail produit impossible.",
+        )
+        setDetailProduct(null)
+      } finally {
+        if (isMounted) {
+          setIsDetailLoading(false)
+        }
+      }
+    }
+
+    fetchProductDetail()
+
+    return () => {
+      isMounted = false
+    }
+  }, [detailProductId])
+
+  function openDetailModal(productId: string) {
+    setProductToDelete(null)
+    setDetailProductId(productId)
+    setDetailProduct(null)
+    setDetailError(null)
+  }
+
+  function closeDetailModal() {
+    setDetailProductId(null)
+    setDetailProduct(null)
+    setDetailError(null)
+    setIsDetailLoading(false)
+  }
+
+  function getStockBadge(quantity: number, stockMinThreshold: number) {
+    const status = getProductStockStatus(quantity, stockMinThreshold)
 
     if (status === "out-of-stock") {
       return { label: "Rupture", className: "status-blocked" }
@@ -115,18 +266,15 @@ export function ProductsPage() {
     return { label: "Disponible", className: "status-active" }
   }
 
-  function toggleSort(nextField: string) {
-    if (sortField === nextField) {
-      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
-    } else {
-      setSortField(nextField)
-      setSortDirection("asc")
-    }
-    setPage(1)
-  }
+  const detailCategoryName =
+    detailProduct
+      ? categories.find((category) => category.id === detailProduct.categoryId)?.name ??
+        detailProduct.categoryId
+      : ""
 
-  const sortIcon =
-    sortDirection === "asc" ? <ArrowUpAZ size={15} /> : <ArrowDownAZ size={15} />
+  const detailStock = detailProduct
+    ? getStockBadge(detailProduct.stockQuantity, detailProduct.stockMinThreshold)
+    : null
 
   return (
     <section className="page clients-page">
@@ -187,70 +335,28 @@ export function ProductsPage() {
               setCategoryFilter(event.target.value)
               setPage(1)
             }}
+            disabled={isLoadingCategories}
           >
             <option value="all">Toutes</option>
-            <option value="informatique">Informatique</option>
-            <option value="electromenager">Electromenager</option>
-            <option value="accessoire">Accessoire</option>
-            <option value="consommable">Consommable</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
           </select>
         </label>
 
-        <label className="products-filter-field">
-          <span>Stock</span>
-          <select
-            value={stockFilter}
-            onChange={(event) => {
-              setStockFilter(event.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="all">Tous</option>
-            <option value="in-stock">Disponible</option>
-            <option value="low-stock">Stock faible</option>
-            <option value="out-of-stock">Rupture</option>
-          </select>
-        </label>
-
-        <div className="products-sort-wrap">
-          <span>Tri</span>
-          <div className="products-sort-actions">
-            <button
-              type="button"
-              className={`btn btn-ghost products-sort-btn ${
-                sortField === "name" ? "is-selected" : ""
-              }`}
-              onClick={() => toggleSort("name")}
-            >
-              Nom {sortField === "name" ? sortIcon : null}
-            </button>
-            <button
-              type="button"
-              className={`btn btn-ghost products-sort-btn ${
-                sortField === "salePrice" ? "is-selected" : ""
-              }`}
-              onClick={() => toggleSort("salePrice")}
-            >
-              Prix vente {sortField === "salePrice" ? sortIcon : null}
-            </button>
-            <button
-              type="button"
-              className={`btn btn-ghost products-sort-btn ${
-                sortField === "quantity" ? "is-selected" : ""
-              }`}
-              onClick={() => toggleSort("quantity")}
-            >
-              Stock {sortField === "quantity" ? sortIcon : null}
-            </button>
-          </div>
-        </div>
       </div>
 
       <div className="clients-toolbar">
         <p className="clients-page-indicator">
-          {startRow}-{endRow} sur {sortedProducts.length}
+          {startRow}-{endRow} sur {totalItems}
         </p>
       </div>
+
+      {notice ? <p className="form-success-banner">{notice}</p> : null}
+
+      {loadError ? <p className="form-error-banner">{loadError}</p> : null}
 
       <div className="table-wrap">
         <table className="clients-table">
@@ -268,29 +374,33 @@ export function ProductsPage() {
           </thead>
           <tbody>
             {currentPageProducts.map((product) => {
-              const stock = getStockBadge(product.quantity)
+              const stock = getStockBadge(product.stockQuantity, product.stockMinThreshold)
               return (
                 <tr key={product.id}>
                   <td>
                     <div className="client-main-cell">
                       <strong>{product.name}</strong>
-                      <small>{product.id}</small>
+                      <small>{product.sku}</small>
                     </div>
                   </td>
-                  <td>{formatProductCategory(product.category)}</td>
-                  <td>{formatFcfa(product.purchasePrice)}</td>
+                  <td>{formatProductCategory(product.categoryName)}</td>
+                  <td>{formatFcfa(product.costPrice)}</td>
                   <td>{formatFcfa(product.salePrice)}</td>
-                  <td>{formatFcfa(product.salePrice - product.purchasePrice)}</td>
-                  <td>{product.quantity}</td>
+                  <td>{formatFcfa(product.salePrice - product.costPrice)}</td>
+                  <td>{product.stockQuantity}</td>
                   <td>
                     <span className={`status-chip ${stock.className}`}>{stock.label}</span>
                   </td>
                   <td>
                     <div className="table-actions-icons">
                       <Link
-                        to={`/products/${product.id}`}
+                        to="#"
                         className="icon-action-btn"
                         aria-label={`Voir ${product.name}`}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          openDetailModal(product.id)
+                        }}
                       >
                         <Eye size={15} />
                       </Link>
@@ -315,10 +425,18 @@ export function ProductsPage() {
               )
             })}
 
-            {currentPageProducts.length === 0 ? (
+            {!isLoading && currentPageProducts.length === 0 ? (
               <tr>
                 <td colSpan={8} className="clients-empty-row">
                   Aucun produit trouvé.
+                </td>
+              </tr>
+            ) : null}
+
+            {isLoading ? (
+              <tr>
+                <td colSpan={8} className="clients-empty-row">
+                  Chargement des produits...
                 </td>
               </tr>
             ) : null}
@@ -328,13 +446,13 @@ export function ProductsPage() {
 
       <div className="clients-mobile-list">
         {currentPageProducts.map((product) => {
-          const stock = getStockBadge(product.quantity)
+          const stock = getStockBadge(product.stockQuantity, product.stockMinThreshold)
           return (
             <article key={product.id} className="client-mobile-card">
               <div className="client-mobile-head">
                 <div>
                   <strong>{product.name}</strong>
-                  <small>{product.id}</small>
+                  <small>{product.sku}</small>
                 </div>
                 <span className={`status-chip ${stock.className}`}>{stock.label}</span>
               </div>
@@ -342,11 +460,11 @@ export function ProductsPage() {
               <div className="client-mobile-grid">
                 <p>
                   <span>Catégorie</span>
-                  <strong>{formatProductCategory(product.category)}</strong>
+                  <strong>{formatProductCategory(product.categoryName)}</strong>
                 </p>
                 <p>
                   <span>Prix achat</span>
-                  <strong>{formatFcfa(product.purchasePrice)}</strong>
+                  <strong>{formatFcfa(product.costPrice)}</strong>
                 </p>
                 <p>
                   <span>Prix vente</span>
@@ -354,7 +472,7 @@ export function ProductsPage() {
                 </p>
                 <p>
                   <span>Stock</span>
-                  <strong>{product.quantity}</strong>
+                  <strong>{product.stockQuantity}</strong>
                 </p>
                 <p>
                   <span>Ajouté le</span>
@@ -364,9 +482,13 @@ export function ProductsPage() {
 
               <div className="table-actions-icons">
                 <Link
-                  to={`/products/${product.id}`}
+                  to="#"
                   className="icon-action-btn"
                   aria-label={`Voir ${product.name}`}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    openDetailModal(product.id)
+                  }}
                 >
                   <Eye size={15} />
                 </Link>
@@ -457,10 +579,16 @@ export function ProductsPage() {
             </p>
 
             <div className="modal-actions">
+              {deleteError ? <p className="form-error-banner">{deleteError}</p> : null}
+
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setProductToDelete(null)}
+                onClick={() => {
+                  setProductToDelete(null)
+                  setDeleteError(null)
+                }}
+                disabled={isDeleting}
               >
                 Annuler
               </button>
@@ -468,9 +596,110 @@ export function ProductsPage() {
                 type="button"
                 className="btn btn-danger"
                 onClick={handleDeleteConfirm}
+                disabled={isDeleting}
               >
-                Supprimer
+                {isDeleting ? "Suppression..." : "Supprimer"}
               </button>
+            </div>
+          </article>
+        </div>
+      ) : null}
+
+      {detailProductId ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={closeDetailModal}
+        >
+          <article
+            className="modal-card modal-product-detail"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Détail produit"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head">
+              <h3>Détail produit</h3>
+              <button
+                type="button"
+                className="icon-action-btn"
+                aria-label="Fermer"
+                onClick={closeDetailModal}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {isDetailLoading ? (
+              <p className="clients-empty-row">Chargement du détail produit...</p>
+            ) : null}
+
+            {detailError ? <p className="form-error-banner">{detailError}</p> : null}
+
+            {detailProduct && !isDetailLoading ? (
+              <div className="modal-product-detail-grid">
+                <p>
+                  <span>SKU</span>
+                  <strong>{detailProduct.sku}</strong>
+                </p>
+                <p>
+                  <span>Nom</span>
+                  <strong>{detailProduct.name}</strong>
+                </p>
+                <p>
+                  <span>Catégorie</span>
+                  <strong>{detailCategoryName}</strong>
+                </p>
+                <p>
+                  <span>Statut stock</span>
+                  <strong className={detailStock?.className ? detailStock.className : ""}>
+                    {detailStock?.label ?? "-"}
+                  </strong>
+                </p>
+                <p>
+                  <span>Prix achat</span>
+                  <strong>{formatFcfa(detailProduct.costPrice)}</strong>
+                </p>
+                <p>
+                  <span>Prix vente</span>
+                  <strong>{formatFcfa(detailProduct.salePrice)}</strong>
+                </p>
+                <p>
+                  <span>Marge unitaire</span>
+                  <strong>{formatFcfa(detailProduct.salePrice - detailProduct.costPrice)}</strong>
+                </p>
+                <p>
+                  <span>Stock</span>
+                  <strong>{detailProduct.stockQuantity}</strong>
+                </p>
+                <p>
+                  <span>Seuil minimum</span>
+                  <strong>{detailProduct.stockMinThreshold}</strong>
+                </p>
+                <p>
+                  <span>Statut API</span>
+                  <strong>{detailProduct.status === "active" ? "Actif" : "Inactif"}</strong>
+                </p>
+                <p>
+                  <span>Créé le</span>
+                  <strong>{formatDate(detailProduct.createdAt)}</strong>
+                </p>
+                <p>
+                  <span>Mis à jour le</span>
+                  <strong>{formatDate(detailProduct.updatedAt)}</strong>
+                </p>
+              </div>
+            ) : null}
+
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={closeDetailModal}>
+                Fermer
+              </button>
+              {detailProduct ? (
+                <Link className="btn btn-primary" to={`/products/${detailProduct.id}/edit`}>
+                  Modifier
+                </Link>
+              ) : null}
             </div>
           </article>
         </div>
