@@ -1,37 +1,98 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeft, Save } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
 import { StockSubnav } from "../components/StockSubnav"
-import { stockItemsData } from "../features/stock/stockData"
 import {
   stockEntrySchema,
   type StockEntryFormValues,
 } from "../features/stock/stockSchemas"
+import { listProducts, type ProductListItem } from "../services/productService"
+import { createStockEntry } from "../services/stockService"
 
 export function StockEntryPage() {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [products, setProducts] = useState<ProductListItem[]>([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<StockEntryFormValues>({
     resolver: zodResolver(stockEntrySchema),
     defaultValues: {
-      productId: stockItemsData[0]?.productId ?? "",
+      productId: "",
       quantity: 1,
-      reason: "Reapprovisionnement",
+      unitCost: 0,
       reference: "",
+      note: "",
     },
   })
 
-  const onSubmit = handleSubmit(async () => {
+  useEffect(() => {
+    let isActive = true
+
+    async function fetchProducts() {
+      setIsLoadingProducts(true)
+
+      try {
+        const result = await listProducts({
+          status: "active",
+          page: 1,
+          limit: 100,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setProducts(result.data)
+        setValue("productId", result.data[0]?.id ?? "")
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setProducts([])
+        setValue("productId", "")
+      } finally {
+        if (isActive) {
+          setIsLoadingProducts(false)
+        }
+      }
+    }
+
+    void fetchProducts()
+
+    return () => {
+      isActive = false
+    }
+  }, [setValue])
+
+  const onSubmit = handleSubmit(async (values) => {
+    setSubmitError(null)
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate("/stock")
+
+    try {
+      await createStockEntry({
+        productId: values.productId,
+        quantity: values.quantity,
+        unitCost: values.unitCost,
+        reference: values.reference,
+        note: values.note,
+      })
+
+      navigate("/stock")
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Entrée stock impossible.")
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -52,16 +113,22 @@ export function StockEntryPage() {
 
       <StockSubnav />
 
+      {submitError ? <p className="form-error-banner">{submitError}</p> : null}
+
       <form className="client-form-card" onSubmit={onSubmit}>
         <div className="client-form-grid">
           <label className="field-block field-block-full">
             <span>Produit *</span>
-            <select {...register("productId")}>
-              {stockItemsData.map((item) => (
-                <option key={item.id} value={item.productId}>
-                  {item.productName} ({item.productId})
+            <select {...register("productId")} disabled={isLoadingProducts || products.length === 0}>
+              {products.length === 0 ? (
+                <option value="">Aucun produit disponible</option>
+              ) : (
+                products.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.sku})
                 </option>
-              ))}
+                ))
+              )}
             </select>
             {errors.productId ? <small>{errors.productId.message}</small> : null}
           </label>
@@ -78,10 +145,16 @@ export function StockEntryPage() {
             {errors.reference ? <small>{errors.reference.message}</small> : null}
           </label>
 
+          <label className="field-block">
+            <span>Coût unitaire *</span>
+            <input type="number" min={1} step="0.01" {...register("unitCost", { valueAsNumber: true })} />
+            {errors.unitCost ? <small>{errors.unitCost.message}</small> : null}
+          </label>
+
           <label className="field-block field-block-full">
-            <span>Motif *</span>
-            <textarea rows={3} {...register("reason")} />
-            {errors.reason ? <small>{errors.reason.message}</small> : null}
+            <span>Note</span>
+            <textarea rows={3} {...register("note")} />
+            {errors.note ? <small>{errors.note.message}</small> : null}
           </label>
         </div>
 
@@ -89,7 +162,7 @@ export function StockEntryPage() {
           <Link to="/stock" className="btn btn-ghost">
             Annuler
           </Link>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting || isLoadingProducts || products.length === 0}>
             <Save size={16} />
             {isSubmitting ? "Traitement..." : "Valider entrée"}
           </button>

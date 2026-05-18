@@ -6,12 +6,11 @@ export const stockEntrySchema = z.object({
     .number({ message: "La quantite est obligatoire" })
     .int("La quantite doit etre un entier")
     .min(1, "La quantite doit etre superieure a 0"),
-  reason: z
-    .string()
-    .trim()
-    .min(3, "Le motif doit contenir au moins 3 caracteres")
-    .max(140, "Motif trop long"),
+  unitCost: z
+    .number({ message: "Le cout unitaire est obligatoire" })
+    .min(1, "Le cout unitaire doit etre superieur a 0"),
   reference: z.string().trim().max(40, "Reference trop longue").optional(),
+  note: z.string().trim().max(200, "Note trop longue").optional(),
 })
 
 export const stockExitSchema = z.object({
@@ -20,12 +19,8 @@ export const stockExitSchema = z.object({
     .number({ message: "La quantite est obligatoire" })
     .int("La quantite doit etre un entier")
     .min(1, "La quantite doit etre superieure a 0"),
-  reason: z
-    .string()
-    .trim()
-    .min(3, "Le motif doit contenir au moins 3 caracteres")
-    .max(140, "Motif trop long"),
   reference: z.string().trim().max(40, "Reference trop longue").optional(),
+  note: z.string().trim().max(200, "Note trop longue").optional(),
 })
 
 export type StockEntryFormValues = z.infer<typeof stockEntrySchema>

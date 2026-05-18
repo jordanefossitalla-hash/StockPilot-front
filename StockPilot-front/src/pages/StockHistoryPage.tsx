@@ -1,48 +1,97 @@
-import { ArrowLeft, Search } from "lucide-react"
-import { useMemo, useState } from "react"
+import { AlertTriangle, ArrowLeft, Search } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { StockSubnav } from "../components/StockSubnav"
-import { stockMovementsData } from "../features/stock/stockData"
 import { formatDate } from "../features/stock/stockFormatters"
+import {
+  listStockHistory,
+  type StockHistoryApiType,
+  type StockHistoryItem,
+} from "../services/stockService"
 
 export function StockHistoryPage() {
   const navigate = useNavigate()
-  const [movements] = useState(stockMovementsData)
+  const [movements, setMovements] = useState<StockHistoryItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [totalItems, setTotalItems] = useState(0)
   const [query, setQuery] = useState("")
-  const [typeFilter, setTypeFilter] = useState("all")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [typeFilter, setTypeFilter] = useState<"all" | StockHistoryApiType>("all")
   const [page, setPage] = useState(1)
-  const PAGE_SIZE = 7
+  const PAGE_SIZE = 20
 
-  const filteredMovements = useMemo(() => {
-    const search = query.trim().toLowerCase()
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 300)
 
-    return movements.filter((movement) => {
-      const typeOk = typeFilter === "all" ? true : movement.type === typeFilter
-      const searchOk =
-        search.length === 0
-          ? true
-          : movement.productName.toLowerCase().includes(search) ||
-            movement.productId.toLowerCase().includes(search) ||
-            movement.reason.toLowerCase().includes(search) ||
-            (movement.reference ?? "").toLowerCase().includes(search)
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [query])
 
-      return typeOk && searchOk
-    })
-  }, [movements, query, typeFilter])
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedQuery, typeFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filteredMovements.length / PAGE_SIZE))
+  useEffect(() => {
+    let isActive = true
+
+    async function fetchHistory() {
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const result = await listStockHistory({
+          page,
+          limit: PAGE_SIZE,
+          type: typeFilter === "all" ? undefined : typeFilter,
+          search: debouncedQuery,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setMovements(result.data)
+        setTotalItems(result.meta.total)
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Chargement historique impossible.",
+        )
+        setMovements([])
+        setTotalItems(0)
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void fetchHistory()
+
+    return () => {
+      isActive = false
+    }
+  }, [PAGE_SIZE, debouncedQuery, page, typeFilter])
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages)
 
-  const currentPageMovements = useMemo(() => {
-    const start = (pageSafe - 1) * PAGE_SIZE
-    return filteredMovements.slice(start, start + PAGE_SIZE)
-  }, [filteredMovements, pageSafe])
+  const currentPageMovements = movements
 
   const startRow =
-    filteredMovements.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
-  const endRow = Math.min(pageSafe * PAGE_SIZE, filteredMovements.length)
+    totalItems === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
+  const endRow = Math.min((pageSafe - 1) * PAGE_SIZE + movements.length, totalItems)
 
-  function typeBadge(type: "in" | "out" | "adjustment") {
+  function typeBadge(type: StockHistoryItem["type"]) {
     if (type === "in") {
       return { text: "Entrée", className: "status-active" }
     }
@@ -81,6 +130,8 @@ export function StockHistoryPage() {
 
       <StockSubnav />
 
+      {loadError ? <p className="form-error-banner">{loadError}</p> : null}
+
       <div className="products-toolbar-grid">
         <label className="search-input-wrap">
           <Search size={16} />
@@ -90,7 +141,6 @@ export function StockHistoryPage() {
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
-              setPage(1)
             }}
           />
         </label>
@@ -100,21 +150,24 @@ export function StockHistoryPage() {
           <select
             value={typeFilter}
             onChange={(event) => {
-              setTypeFilter(event.target.value)
-              setPage(1)
+              setTypeFilter(event.target.value as "all" | StockHistoryApiType)
             }}
           >
             <option value="all">Tous</option>
-            <option value="in">Entrée</option>
-            <option value="out">Sortie</option>
-            <option value="adjustment">Ajustement</option>
+            <option value="ENTRY">Entrée</option>
+            <option value="EXIT">Sortie</option>
+            <option value="ADJUSTMENT">Ajustement</option>
+            <option value="SALE">Vente</option>
+            <option value="ORDER_RECEIVE">Réception commande</option>
           </select>
         </label>
       </div>
 
       <div className="clients-toolbar">
         <p className="clients-page-indicator">
-          {startRow}-{endRow} sur {filteredMovements.length}
+          {isLoading
+            ? "Chargement..."
+            : `${currentPageMovements.length} résultat(s) affiché(s) • page ${pageSafe} • ${startRow}-${endRow} sur ${totalItems}`}
         </p>
       </div>
 
@@ -136,27 +189,34 @@ export function StockHistoryPage() {
 
               return (
                 <tr key={movement.id}>
-                  <td>{formatDate(movement.date)}</td>
+                  <td>{formatDate(movement.createdAt)}</td>
                   <td>
                     <div className="client-main-cell">
                       <strong>{movement.productName}</strong>
-                      <small>{movement.productId}</small>
+                      <small>{movement.productSku ?? movement.productId}</small>
                     </div>
                   </td>
                   <td>
                     <span className={`status-chip ${badge.className}`}>{badge.text}</span>
                   </td>
                   <td>{movement.quantity}</td>
-                  <td>{movement.reason}</td>
-                  <td>{movement.reference ?? "-"}</td>
+                  <td>{movement.note ?? "-"}</td>
+                  <td>{movement.referenceId ?? "-"}</td>
                 </tr>
               )
             })}
 
-            {currentPageMovements.length === 0 ? (
+            {!isLoading && currentPageMovements.length === 0 ? (
               <tr>
                 <td colSpan={6} className="clients-empty-row">
                   Aucun mouvement trouvé.
+                </td>
+              </tr>
+            ) : null}
+            {isLoading ? (
+              <tr>
+                <td colSpan={6} className="clients-empty-row">
+                  Chargement des mouvements...
                 </td>
               </tr>
             ) : null}
@@ -173,7 +233,7 @@ export function StockHistoryPage() {
               <div className="client-mobile-head">
                 <div>
                   <strong>{movement.productName}</strong>
-                  <small>{movement.productId}</small>
+                  <small>{movement.productSku ?? movement.productId}</small>
                 </div>
                 <span className={`status-chip ${badge.className}`}>{badge.text}</span>
               </div>
@@ -181,7 +241,7 @@ export function StockHistoryPage() {
               <div className="client-mobile-grid">
                 <p>
                   <span>Date</span>
-                  <strong>{formatDate(movement.date)}</strong>
+                  <strong>{formatDate(movement.createdAt)}</strong>
                 </p>
                 <p>
                   <span>Quantité</span>
@@ -189,16 +249,24 @@ export function StockHistoryPage() {
                 </p>
                 <p>
                   <span>Motif</span>
-                  <strong>{movement.reason}</strong>
+                  <strong>{movement.note ?? "-"}</strong>
                 </p>
                 <p>
                   <span>Référence</span>
-                  <strong>{movement.reference ?? "-"}</strong>
+                  <strong>{movement.referenceId ?? "-"}</strong>
                 </p>
               </div>
             </article>
           )
         })}
+
+        {!isLoading && currentPageMovements.length === 0 ? (
+          <article className="client-mobile-card">
+            <p className="clients-empty-row">
+              <AlertTriangle size={14} /> Aucun mouvement trouvé.
+            </p>
+          </article>
+        ) : null}
       </div>
 
       <div className="clients-pagination">
@@ -206,7 +274,7 @@ export function StockHistoryPage() {
           type="button"
           className="btn btn-ghost"
           onClick={() => setPage((current) => Math.max(1, current - 1))}
-          disabled={pageSafe === 1}
+          disabled={pageSafe === 1 || isLoading}
         >
           Précédent
         </button>
@@ -219,6 +287,7 @@ export function StockHistoryPage() {
                 type="button"
                 className={`page-chip ${pageNumber === pageSafe ? "active" : ""}`}
                 onClick={() => setPage(pageNumber)}
+                disabled={isLoading}
               >
                 {pageNumber}
               </button>
@@ -230,7 +299,7 @@ export function StockHistoryPage() {
           type="button"
           className="btn btn-ghost"
           onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-          disabled={pageSafe === totalPages}
+          disabled={pageSafe === totalPages || isLoading}
         >
           Suivant
         </button>

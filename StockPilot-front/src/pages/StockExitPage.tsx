@@ -1,37 +1,96 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeft, Save } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate } from "react-router-dom"
 import { StockSubnav } from "../components/StockSubnav"
-import { stockItemsData } from "../features/stock/stockData"
 import {
   stockExitSchema,
   type StockExitFormValues,
 } from "../features/stock/stockSchemas"
+import { listProducts, type ProductListItem } from "../services/productService"
+import { createStockExit } from "../services/stockService"
 
 export function StockExitPage() {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [products, setProducts] = useState<ProductListItem[]>([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<StockExitFormValues>({
     resolver: zodResolver(stockExitSchema),
     defaultValues: {
-      productId: stockItemsData[0]?.productId ?? "",
+      productId: "",
       quantity: 1,
-      reason: "Sortie pour vente",
       reference: "",
+      note: "",
     },
   })
 
-  const onSubmit = handleSubmit(async () => {
+  useEffect(() => {
+    let isActive = true
+
+    async function fetchProducts() {
+      setIsLoadingProducts(true)
+
+      try {
+        const result = await listProducts({
+          status: "active",
+          page: 1,
+          limit: 100,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setProducts(result.data)
+        setValue("productId", result.data[0]?.id ?? "")
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setProducts([])
+        setValue("productId", "")
+      } finally {
+        if (isActive) {
+          setIsLoadingProducts(false)
+        }
+      }
+    }
+
+    void fetchProducts()
+
+    return () => {
+      isActive = false
+    }
+  }, [setValue])
+
+  const onSubmit = handleSubmit(async (values) => {
+    setSubmitError(null)
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 350))
-    navigate("/stock")
+
+    try {
+      await createStockExit({
+        productId: values.productId,
+        quantity: values.quantity,
+        reference: values.reference,
+        note: values.note,
+      })
+
+      navigate("/stock")
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Sortie stock impossible.")
+    } finally {
+      setIsSubmitting(false)
+    }
   })
 
   return (
@@ -52,16 +111,22 @@ export function StockExitPage() {
 
       <StockSubnav />
 
+      {submitError ? <p className="form-error-banner">{submitError}</p> : null}
+
       <form className="client-form-card" onSubmit={onSubmit}>
         <div className="client-form-grid">
           <label className="field-block field-block-full">
             <span>Produit *</span>
-            <select {...register("productId")}>
-              {stockItemsData.map((item) => (
-                <option key={item.id} value={item.productId}>
-                  {item.productName} ({item.productId})
+            <select {...register("productId")} disabled={isLoadingProducts || products.length === 0}>
+              {products.length === 0 ? (
+                <option value="">Aucun produit disponible</option>
+              ) : (
+                products.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.sku})
                 </option>
-              ))}
+                ))
+              )}
             </select>
             {errors.productId ? <small>{errors.productId.message}</small> : null}
           </label>
@@ -79,9 +144,9 @@ export function StockExitPage() {
           </label>
 
           <label className="field-block field-block-full">
-            <span>Motif *</span>
-            <textarea rows={3} {...register("reason")} />
-            {errors.reason ? <small>{errors.reason.message}</small> : null}
+            <span>Note</span>
+            <textarea rows={3} {...register("note")} />
+            {errors.note ? <small>{errors.note.message}</small> : null}
           </label>
         </div>
 
@@ -89,7 +154,7 @@ export function StockExitPage() {
           <Link to="/stock" className="btn btn-ghost">
             Annuler
           </Link>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting || isLoadingProducts || products.length === 0}>
             <Save size={16} />
             {isSubmitting ? "Traitement..." : "Valider sortie"}
           </button>
