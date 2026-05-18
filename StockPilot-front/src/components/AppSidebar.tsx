@@ -14,14 +14,21 @@ import {
   Truck,
   Users,
 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { NavLink } from "react-router-dom"
 import appLogo from "../assets/stockpilot-logo-retained.png"
+import { listClientOrders } from "../services/orderService"
+import {
+  getPendingOrdersCount,
+  ORDER_PENDING_EVENT,
+  ORDER_PENDING_STORAGE_KEY,
+  setPendingOrdersCount,
+} from "../utils/orderPendingSignal"
 
 type NavItem = {
   to: string
   label: string
   icon: LucideIcon
-  badge?: number
 }
 
 type NavGroup = {
@@ -36,7 +43,7 @@ const navGroups: NavGroup[] = [
       { to: "/", label: "Tableau de bord", icon: LayoutDashboard },
       { to: "/sales", label: "Ventes", icon: TrendingUp },
       { to: "/clients", label: "Clients", icon: Users },
-      { to: "/orders", label: "Commandes", icon: ShoppingCart, badge: 4 },
+      { to: "/orders", label: "Commandes", icon: ShoppingCart },
       { to: "/products", label: "Produits", icon: Package },
       { to: "/categories", label: "Catégories", icon: Boxes },
       { to: "/stock", label: "Stock", icon: Archive },
@@ -73,6 +80,59 @@ export function AppSidebar({
   userRole,
   userInitials,
 }: AppSidebarProps) {
+  const [pendingOrdersCount, setPendingOrdersCountState] = useState(() => getPendingOrdersCount())
+
+  useEffect(() => {
+    let isActive = true
+
+    const syncPendingOrders = () => {
+      if (!isActive) {
+        return
+      }
+
+      setPendingOrdersCountState(getPendingOrdersCount())
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === ORDER_PENDING_STORAGE_KEY) {
+        syncPendingOrders()
+      }
+    }
+
+    async function fetchPendingOrders() {
+      try {
+        const result = await listClientOrders({
+          status: "to-deliver",
+          page: 1,
+          limit: 1,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setPendingOrdersCount(result.meta.total)
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        syncPendingOrders()
+      }
+    }
+
+    window.addEventListener("storage", onStorage)
+    window.addEventListener(ORDER_PENDING_EVENT, syncPendingOrders)
+    syncPendingOrders()
+    void fetchPendingOrders()
+
+    return () => {
+      isActive = false
+      window.removeEventListener("storage", onStorage)
+      window.removeEventListener(ORDER_PENDING_EVENT, syncPendingOrders)
+    }
+  }, [])
+
   return (
     <>
       <aside
@@ -117,7 +177,7 @@ export function AppSidebar({
           {navGroups.map((group) => (
             <div key={group.title} className="nav-group">
               <span className="nav-group-label">{group.title}</span>
-              {group.items.map(({ to, label, icon: Icon, badge }) => (
+              {group.items.map(({ to, label, icon: Icon }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -129,9 +189,11 @@ export function AppSidebar({
                 >
                   <span className="nav-icon-wrap">
                     <Icon size={18} strokeWidth={1.75} />
-                    {badge !== undefined && (
-                      <span className="nav-badge">{badge}</span>
-                    )}
+                    {to === "/orders" && pendingOrdersCount > 0 ? (
+                      <span className="nav-badge">
+                        {pendingOrdersCount > 99 ? "99+" : pendingOrdersCount}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="nav-label">{label}</span>
                   <span className="nav-tooltip" aria-hidden="true">

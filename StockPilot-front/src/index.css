@@ -2794,6 +2794,52 @@ button {
   justify-content: center;
 }
 
+.orders-toolbar {
+  gap: 0.62rem;
+}
+
+.orders-reset-btn {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.orders-deadline-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  padding: 0.14rem 0.54rem;
+  font-size: 0.69rem;
+  font-weight: 700;
+  line-height: 1.2;
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+}
+
+.orders-deadline-hint.is-overdue {
+  border-color: color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
+  color: var(--color-danger);
+}
+
+.orders-deadline-hint.is-today {
+  border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
+  color: color-mix(in srgb, var(--color-warning) 80%, #7a5000);
+}
+
+.orders-deadline-hint.is-upcoming {
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+  color: var(--color-brand);
+}
+
+.orders-deadline-hint.is-delivered {
+  border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface));
+  color: var(--color-success);
+}
+
 .orders-mobile-list .orders-action-btn {
   width: 100%;
 }
@@ -2807,6 +2853,19 @@ button {
 @media (max-width: 760px) {
   .orders-kpi-toggle {
     display: inline-flex;
+  }
+
+  .orders-toolbar {
+    align-items: stretch;
+  }
+
+  .orders-toolbar .clients-page-indicator {
+    text-align: right;
+  }
+
+  .orders-reset-btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .orders-kpi-block .orders-stats-grid {

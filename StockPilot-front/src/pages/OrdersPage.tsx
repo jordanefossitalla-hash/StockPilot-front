@@ -5,38 +5,30 @@ import {
   ClipboardList,
   Plus,
   Search,
+  Trash2,
   Truck,
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
-import { clientsData } from "../features/clients/clientData"
-import { productsData } from "../features/products/productData"
+import { listClients } from "../services/clientService"
+import {
+  createClientOrder,
+  deleteClientOrder,
+  listClientOrders,
+  updateClientOrderDeliveryStatus,
+  type ClientOrder,
+  type OrderPriority,
+  type OrderStatus,
+} from "../services/orderService"
 import { setPendingOrdersCount } from "../utils/orderPendingSignal"
 
-type OrderPriority = "high" | "medium" | "low"
-type OrderStatus = "to-deliver" | "delivered"
 type OrderViewTab = "entry" | "list"
 type OrderStatusTab = "all" | OrderStatus
+type OrderPriorityFilter = "all" | OrderPriority
 
-type OrderRecord = {
+type ClientOption = {
   id: string
-  clientId: string
-  clientName: string
-  productId: string
-  productName: string
-  quantity: number
-  priority: OrderPriority
-  expectedDeliveryDate: string
-  note: string
-  status: OrderStatus
-  createdAt: string
-  deliveredAt?: string
+  name: string
 }
-
-const priorityOptions: Array<{ value: OrderPriority; label: string }> = [
-  { value: "high", label: "Haute" },
-  { value: "medium", label: "Moyenne" },
-  { value: "low", label: "Faible" },
-]
 
 const statusTabs: Array<{ value: OrderStatusTab; label: string }> = [
   { value: "all", label: "Toutes" },
@@ -44,40 +36,20 @@ const statusTabs: Array<{ value: OrderStatusTab; label: string }> = [
   { value: "delivered", label: "Livrées" },
 ]
 
-const initialOrders: OrderRecord[] = [
-  {
-    id: "CMD-20260510-001",
-    clientId: "CL-001",
-    clientName: "Awa Traore",
-    productId: "PRD-001",
-    productName: "POS Terminal T20",
-    quantity: 2,
-    priority: "high",
-    expectedDeliveryDate: "2026-05-12T11:00",
-    note: "Livraison avant midi.",
-    status: "to-deliver",
-    createdAt: "2026-05-10",
-  },
-  {
-    id: "CMD-20260508-002",
-    clientId: "CL-002",
-    clientName: "Moussa Kone",
-    productId: "PRD-005",
-    productName: "Cartouche imprimante X1",
-    quantity: 8,
-    priority: "medium",
-    expectedDeliveryDate: "2026-05-11T16:30",
-    note: "Depot principal Yopougon.",
-    status: "delivered",
-    createdAt: "2026-05-08",
-    deliveredAt: "2026-05-11",
-  },
+const priorityOptions: Array<{ value: OrderPriority; label: string }> = [
+  { value: "high", label: "Haute" },
+  { value: "medium", label: "Moyenne" },
+  { value: "low", label: "Faible" },
 ]
 
-function buildOrderId(index: number) {
-  const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "")
-  return `CMD-${stamp}-${String(index).padStart(3, "0")}`
-}
+const priorityFilterOptions: Array<{ value: OrderPriorityFilter; label: string }> = [
+  { value: "all", label: "Toutes priorités" },
+  { value: "high", label: "Haute" },
+  { value: "medium", label: "Moyenne" },
+  { value: "low", label: "Faible" },
+]
+
+const PAGE_SIZE = 20
 
 function toDateTimeLocalValue(date: Date) {
   const year = date.getFullYear()
@@ -102,6 +74,34 @@ function formatOrderDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date)
+}
+
+function getDeliveryHint(deliveryDueAt: string, status: OrderStatus) {
+  if (status === "delivered") {
+    return { label: "Livrée", className: "is-delivered" }
+  }
+
+  const dueAt = new Date(deliveryDueAt).getTime()
+  if (Number.isNaN(dueAt)) {
+    return { label: "Date invalide", className: "is-overdue" }
+  }
+
+  const diffMs = dueAt - Date.now()
+  const oneDayMs = 24 * 60 * 60 * 1000
+
+  if (diffMs < 0) {
+    return { label: "En retard", className: "is-overdue" }
+  }
+
+  if (diffMs <= oneDayMs) {
+    return { label: "Aujourd'hui", className: "is-today" }
+  }
+
+  if (diffMs <= oneDayMs * 2) {
+    return { label: "Demain", className: "is-upcoming" }
+  }
+
+  return { label: "Planifiée", className: "is-upcoming" }
 }
 
 function priorityLabel(priority: OrderPriority) {
@@ -137,21 +137,177 @@ function statusClassName(status: OrderStatus) {
 }
 
 export function OrdersPage() {
-  const nowLocal = new Date()
-  const nowDateIso = nowLocal.toISOString().slice(0, 10)
-  const nowDateTimeLocal = toDateTimeLocalValue(nowLocal)
-  const [orders, setOrders] = useState<OrderRecord[]>(initialOrders)
+  const nowDateTimeLocal = toDateTimeLocalValue(new Date())
+  const [orders, setOrders] = useState<ClientOrder[]>([])
+  const [clients, setClients] = useState<ClientOption[]>([])
+  const [isClientsLoading, setIsClientsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [formError, setFormError] = useState("")
   const [activeViewTab, setActiveViewTab] = useState<OrderViewTab>("list")
   const [activeStatusTab, setActiveStatusTab] = useState<OrderStatusTab>("to-deliver")
+  const [activePriorityFilter, setActivePriorityFilter] = useState<OrderPriorityFilter>("all")
   const [isMobileKpiOpen, setIsMobileKpiOpen] = useState(false)
-  const [clientId, setClientId] = useState(clientsData[0]?.id ?? "")
-  const [productId, setProductId] = useState(productsData[0]?.id ?? "")
-  const [quantityInput, setQuantityInput] = useState("1")
+  const [clientId, setClientId] = useState("")
   const [priority, setPriority] = useState<OrderPriority>("medium")
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(nowDateTimeLocal)
   const [note, setNote] = useState("")
   const [search, setSearch] = useState("")
-  const [formError, setFormError] = useState("")
+  const [totalOrders, setTotalOrders] = useState(0)
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function fetchClientsOptions() {
+      setIsClientsLoading(true)
+
+      try {
+        const result = await listClients({
+          page: 1,
+          limit: 100,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        const options = result.clients.map((client) => ({
+          id: client.id,
+          name: client.name,
+        }))
+
+        setClients(options)
+        setClientId((current) => current || options[0]?.id || "")
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setClients([])
+        setClientId("")
+      } finally {
+        if (isActive) {
+          setIsClientsLoading(false)
+        }
+      }
+    }
+
+    void fetchClientsOptions()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function fetchOrders() {
+      setIsLoading(true)
+      setLoadError(null)
+      setActionError(null)
+
+      try {
+        const result = await listClientOrders({
+          status: activeStatusTab === "all" ? undefined : activeStatusTab,
+          priority: activePriorityFilter === "all" ? undefined : activePriorityFilter,
+          page,
+          limit: PAGE_SIZE,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setOrders(result.data)
+        setTotalOrders(result.meta.total)
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Chargement des commandes impossible.",
+        )
+        setOrders([])
+        setTotalOrders(0)
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void fetchOrders()
+
+    return () => {
+      isActive = false
+    }
+  }, [activePriorityFilter, activeStatusTab, page])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function refreshPendingCount() {
+      try {
+        const result = await listClientOrders({
+          status: "to-deliver",
+          page: 1,
+          limit: 1,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setPendingOrdersCount(result.meta.total)
+      } catch {
+        if (!isActive) {
+          return
+        }
+
+        setPendingOrdersCount(0)
+      }
+    }
+
+    void refreshPendingCount()
+
+    return () => {
+      isActive = false
+    }
+  }, [activePriorityFilter, activeStatusTab, busyOrderId, isSubmitting, orders, page, totalOrders])
+
+  useEffect(() => {
+    setPage(1)
+  }, [activeStatusTab, activePriorityFilter])
+
+  const clientNameById = useMemo(() => {
+    return new Map(clients.map((client) => [client.id, client.name]))
+  }, [clients])
+
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase()
+
+    if (!query) {
+      return orders
+    }
+
+    return orders.filter((order) => {
+      const clientName = (clientNameById.get(order.clientId) || "").toLowerCase()
+
+      return (
+        order.id.toLowerCase().includes(query) ||
+        clientName.includes(query) ||
+        order.note.toLowerCase().includes(query)
+      )
+    })
+  }, [clientNameById, orders, search])
 
   const metrics = useMemo(() => {
     return orders.reduce(
@@ -181,26 +337,14 @@ export function OrdersPage() {
     )
   }, [orders])
 
-  const filteredOrders = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    return orders.filter((order) => {
-      const statusOk =
-        activeStatusTab === "all" ? true : order.status === activeStatusTab
-      const searchOk =
-        query.length === 0
-          ? true
-          : order.id.toLowerCase().includes(query) ||
-            order.clientName.toLowerCase().includes(query) ||
-            order.productName.toLowerCase().includes(query)
-
-      return statusOk && searchOk
-    })
-  }, [orders, activeStatusTab, search])
-
-  useEffect(() => {
-    setPendingOrdersCount(metrics.toDeliver)
-  }, [metrics.toDeliver])
+  const totalPages = Math.max(1, Math.ceil(totalOrders / PAGE_SIZE))
+  const pageSafe = Math.min(page, totalPages)
+  const startRow = totalOrders === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
+  const endRow = Math.min((pageSafe - 1) * PAGE_SIZE + orders.length, totalOrders)
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    activePriorityFilter !== "all" ||
+    activeStatusTab !== "all"
 
   function statusTabCount(tab: OrderStatusTab) {
     if (tab === "all") {
@@ -214,31 +358,27 @@ export function OrdersPage() {
     return metrics.delivered
   }
 
+  function clearListFilters() {
+    setSearch("")
+    setActivePriorityFilter("all")
+    setActiveStatusTab("all")
+    setPage(1)
+  }
+
   function resetForm() {
-    setClientId(clientsData[0]?.id ?? "")
-    setProductId(productsData[0]?.id ?? "")
-    setQuantityInput("1")
+    setClientId(clients[0]?.id ?? "")
     setPriority("medium")
     setExpectedDeliveryDate(toDateTimeLocalValue(new Date()))
     setNote("")
     setFormError("")
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormError("")
 
-    const selectedClient = clientsData.find((client) => client.id === clientId)
-    const selectedProduct = productsData.find((product) => product.id === productId)
-    const quantity = Number(quantityInput)
-
-    if (!selectedClient || !selectedProduct) {
-      setFormError("Sélectionnez un client et un produit.")
-      return
-    }
-
-    if (!Number.isFinite(quantity) || quantity < 1) {
-      setFormError("La quantité doit être supérieure ou égale à 1.")
+    if (!clientId) {
+      setFormError("Sélectionnez un client.")
       return
     }
 
@@ -248,62 +388,108 @@ export function OrdersPage() {
     }
 
     const expectedTimestamp = new Date(expectedDeliveryDate).getTime()
-    const nowTimestamp = Date.now()
 
     if (Number.isNaN(expectedTimestamp)) {
       setFormError("La date et l'heure de livraison est invalide.")
       return
     }
 
-    if (expectedTimestamp < nowTimestamp) {
+    if (expectedTimestamp < Date.now()) {
       setFormError("La date et l'heure de livraison doit être dans le futur.")
       return
     }
 
-    const nextOrder: OrderRecord = {
-      id: buildOrderId(orders.length + 1),
-      clientId: selectedClient.id,
-      clientName: selectedClient.name,
-      productId: selectedProduct.id,
-      productName: selectedProduct.name,
-      quantity,
-      priority,
-      expectedDeliveryDate,
-      note: note.trim(),
-      status: "to-deliver",
-      createdAt: nowDateIso,
-    }
+    setIsSubmitting(true)
 
-    setOrders((previous) => [nextOrder, ...previous])
-    setActiveViewTab("list")
-    setActiveStatusTab("to-deliver")
-    resetForm()
+    try {
+      await createClientOrder({
+        clientId,
+        orderedAt: new Date().toISOString(),
+        deliveryDueAt: new Date(expectedDeliveryDate).toISOString(),
+        priority,
+        note: note.trim() || undefined,
+      })
+
+      setActiveViewTab("list")
+      setActiveStatusTab("to-deliver")
+      setActivePriorityFilter("all")
+      setPage(1)
+      resetForm()
+
+      const refreshed = await listClientOrders({
+        status: "to-deliver",
+        page: 1,
+        limit: PAGE_SIZE,
+      })
+
+      setOrders(refreshed.data)
+      setTotalOrders(refreshed.meta.total)
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Création commande impossible.",
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  function toggleDeliveryStatus(orderId: string) {
-    const today = new Date().toISOString().slice(0, 10)
+  async function refreshCurrentOrders(targetPage = page) {
+    const result = await listClientOrders({
+      status: activeStatusTab === "all" ? undefined : activeStatusTab,
+      priority: activePriorityFilter === "all" ? undefined : activePriorityFilter,
+      page: targetPage,
+      limit: PAGE_SIZE,
+    })
 
-    setOrders((previous) =>
-      previous.map((order) => {
-        if (order.id !== orderId) {
-          return order
-        }
+    setOrders(result.data)
+    setTotalOrders(result.meta.total)
+  }
 
-        if (order.status === "to-deliver") {
-          return {
-            ...order,
-            status: "delivered",
-            deliveredAt: today,
-          }
-        }
+  async function handleToggleDeliveryStatus(order: ClientOrder) {
+    setActionError(null)
+    setBusyOrderId(order.id)
 
-        return {
-          ...order,
-          status: "to-deliver",
-          deliveredAt: undefined,
-        }
-      }),
-    )
+    try {
+      const nextStatus: OrderStatus =
+        order.status === "to-deliver" ? "delivered" : "to-deliver"
+
+      await updateClientOrderDeliveryStatus(order.id, nextStatus)
+      await refreshCurrentOrders()
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Mise à jour du statut impossible.",
+      )
+    } finally {
+      setBusyOrderId(null)
+    }
+  }
+
+  async function handleDeleteOrder(orderId: string) {
+    const confirmed = window.confirm("Supprimer cette commande ?")
+    if (!confirmed) {
+      return
+    }
+
+    setActionError(null)
+    setBusyOrderId(orderId)
+
+    try {
+      await deleteClientOrder(orderId)
+
+      if (orders.length === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1))
+      } else {
+        await refreshCurrentOrders()
+      }
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Suppression commande impossible.",
+      )
+    } finally {
+      setBusyOrderId(null)
+    }
   }
 
   const hasFilteredOrders = filteredOrders.length > 0
@@ -315,6 +501,8 @@ export function OrdersPage() {
         <p className="page-subtitle">
           Enregistrez les commandes par priorité et suivez les livraisons.
         </p>
+        {loadError ? <p className="form-error-banner">{loadError}</p> : null}
+        {actionError ? <p className="form-error-banner">{actionError}</p> : null}
       </div>
 
       <div className="sales-main-tabs orders-main-tabs" role="tablist" aria-label="Vue commandes">
@@ -351,19 +539,19 @@ export function OrdersPage() {
 
         <div className="clients-stats-grid orders-stats-grid">
           <article className="stat-card">
-            <span>Total commandes</span>
+            <span>Total (page)</span>
             <strong>{metrics.total}</strong>
           </article>
           <article className="stat-card">
-            <span>À livrer</span>
+            <span>À livrer (page)</span>
             <strong>{metrics.toDeliver}</strong>
           </article>
           <article className="stat-card">
-            <span>Livrées</span>
+            <span>Livrées (page)</span>
             <strong>{metrics.delivered}</strong>
           </article>
           <article className="stat-card">
-            <span>Priorite haute</span>
+            <span>Priorité haute</span>
             <strong>{metrics.highPriority}</strong>
           </article>
         </div>
@@ -375,41 +563,28 @@ export function OrdersPage() {
             <div className="sales-form-head">
               <h3>Nouvelle commande</h3>
               <button type="button" className="btn btn-ghost" onClick={resetForm}>
-                  Réinitialiser
+                Réinitialiser
               </button>
             </div>
 
             <div className="client-form-grid">
               <label className="field-block">
                 <span>Client *</span>
-                <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
-                  {clientsData.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name} ({client.id})
-                    </option>
-                  ))}
+                <select
+                  value={clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                  disabled={isClientsLoading}
+                >
+                  {clients.length === 0 ? (
+                    <option value="">Aucun client disponible</option>
+                  ) : (
+                    clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))
+                  )}
                 </select>
-              </label>
-
-              <label className="field-block">
-                <span>Produit *</span>
-                <select value={productId} onChange={(event) => setProductId(event.target.value)}>
-                  {productsData.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} ({product.id})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field-block">
-                <span>Quantité *</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={quantityInput}
-                  onChange={(event) => setQuantityInput(event.target.value)}
-                />
               </label>
 
               <label className="field-block">
@@ -441,7 +616,7 @@ export function OrdersPage() {
                 <span>Note (optionnel)</span>
                 <textarea
                   rows={3}
-                  placeholder="Ex: contacter le client 30 min avant la livraison"
+                  placeholder="Ex: commande urgente, confirmer à la réception"
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                 />
@@ -451,9 +626,13 @@ export function OrdersPage() {
             {formError ? <p className="supplier-payment-error">{formError}</p> : null}
 
             <div className="client-form-actions">
-              <button type="submit" className="btn btn-primary">
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={isSubmitting || isClientsLoading || clients.length === 0}
+              >
                 <Plus size={16} />
-                Enregistrer
+                {isSubmitting ? "Enregistrement..." : "Enregistrer"}
               </button>
             </div>
           </form>
@@ -466,26 +645,47 @@ export function OrdersPage() {
               <li>Faible: livraison flexible.</li>
             </ul>
             <p className="supplier-payment-caption">
-              Une commande enregistrée apparaît automatiquement dans l'onglet
-              "Suivi livraisons" avec le statut "À livrer".
+              La création envoie directement les champs API: clientId, orderedAt,
+              deliveryDueAt, priority et note.
             </p>
           </aside>
         </div>
       ) : (
         <>
-          <div className="clients-toolbar sales-toolbar">
+          <div className="clients-toolbar sales-toolbar orders-toolbar">
             <label className="search-input-wrap">
               <Search size={16} />
               <input
                 type="search"
-                placeholder="Rechercher par code, client ou produit"
+                placeholder="Rechercher par client ou note"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </label>
+
+            <label className="field-block" style={{ minWidth: 170 }}>
+              <span>Priorité</span>
+              <select
+                value={activePriorityFilter}
+                onChange={(event) => setActivePriorityFilter(event.target.value as OrderPriorityFilter)}
+              >
+                {priorityFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <p className="clients-page-indicator">
-              {filteredOrders.length} commande(s) affichee(s) sur {orders.length}
+              {isLoading ? "Chargement..." : `${startRow}-${endRow} sur ${totalOrders}`}
             </p>
+
+            {hasActiveFilters ? (
+              <button type="button" className="btn btn-ghost orders-reset-btn" onClick={clearListFilters}>
+                Réinitialiser filtres
+              </button>
+            ) : null}
           </div>
 
           <div className="sales-tabs" role="tablist" aria-label="Statuts commandes">
@@ -504,15 +704,31 @@ export function OrdersPage() {
             ))}
           </div>
 
-          {orders.length === 0 ? (
+          {isLoading ? (
+            <div className="placeholder-state">
+              <ClipboardList size={36} strokeWidth={1.25} className="text-muted" />
+              <p>Chargement des commandes...</p>
+            </div>
+          ) : orders.length === 0 ? (
             <div className="placeholder-state">
               <ClipboardList size={38} strokeWidth={1.25} className="text-muted" />
-              <p>Aucune commande enregistrée pour le moment.</p>
+              <p>Aucune commande enregistrée pour ce filtre.</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setActiveViewTab("entry")}
+              >
+                <Plus size={15} />
+                Créer une commande
+              </button>
             </div>
           ) : !hasFilteredOrders ? (
             <div className="placeholder-state">
               <ClipboardList size={36} strokeWidth={1.25} className="text-muted" />
-              <p>Aucune commande ne correspond à ce filtre.</p>
+              <p>Aucune commande ne correspond à la recherche.</p>
+              <button type="button" className="btn btn-ghost" onClick={() => setSearch("") }>
+                Effacer la recherche
+              </button>
             </div>
           ) : (
             <>
@@ -520,66 +736,85 @@ export function OrdersPage() {
                 <table className="clients-table">
                   <thead>
                     <tr>
-                      <th>Référence</th>
                       <th>Client</th>
-                      <th>Produit</th>
-                      <th>Qt</th>
                       <th>Priorité</th>
                       <th>Livraison prévue</th>
+                      <th>Échéance</th>
                       <th>Statut</th>
-                      <th>Action</th>
+                      <th>Note</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((order) => (
+                    {filteredOrders.map((order) => {
+                      const deliveryHint = getDeliveryHint(order.deliveryDueAt, order.status)
+
+                      return (
                       <tr key={order.id}>
-                        <td>{order.id}</td>
-                        <td>{order.clientName}</td>
-                        <td>{order.productName}</td>
-                        <td>{order.quantity}</td>
+                        <td>{clientNameById.get(order.clientId) || order.clientId}</td>
                         <td>
                           <span className={`status-chip ${priorityClassName(order.priority)}`}>
                             {priorityLabel(order.priority)}
                           </span>
                         </td>
-                        <td>{formatOrderDateTime(order.expectedDeliveryDate)}</td>
+                        <td>{formatOrderDateTime(order.deliveryDueAt)}</td>
+                        <td>
+                          <span className={`orders-deadline-hint ${deliveryHint.className}`}>
+                            {deliveryHint.label}
+                          </span>
+                        </td>
                         <td>
                           <span className={`status-chip ${statusClassName(order.status)}`}>
                             {statusLabel(order.status)}
                           </span>
                         </td>
+                        <td>{order.note || "-"}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="btn btn-ghost orders-action-btn"
-                            onClick={() => toggleDeliveryStatus(order.id)}
-                          >
-                            {order.status === "to-deliver" ? (
-                              <>
-                                <CheckCircle2 size={15} />
-                                Marquer livrée
-                              </>
-                            ) : (
-                              <>
-                                <Truck size={15} />
-                                Remettre à livrer
-                              </>
-                            )}
-                          </button>
+                          <div className="table-actions-icons">
+                            <button
+                              type="button"
+                              className="btn btn-ghost orders-action-btn"
+                              onClick={() => handleToggleDeliveryStatus(order)}
+                              disabled={busyOrderId === order.id}
+                            >
+                              {order.status === "to-deliver" ? (
+                                <>
+                                  <CheckCircle2 size={15} />
+                                  Marquer livrée
+                                </>
+                              ) : (
+                                <>
+                                  <Truck size={15} />
+                                  Remettre à livrer
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost orders-action-btn"
+                              onClick={() => handleDeleteOrder(order.id)}
+                              disabled={busyOrderId === order.id}
+                            >
+                              <Trash2 size={15} />
+                              Supprimer
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
 
               <div className="clients-mobile-list orders-mobile-list">
-                {filteredOrders.map((order) => (
+                {filteredOrders.map((order) => {
+                  const deliveryHint = getDeliveryHint(order.deliveryDueAt, order.status)
+
+                  return (
                   <article key={`${order.id}-mobile`} className="client-mobile-card">
                     <div className="client-mobile-head">
                       <div>
-                        <strong>{order.clientName}</strong>
-                        <small>{order.id}</small>
+                        <strong>{clientNameById.get(order.clientId) || order.clientId}</strong>
                       </div>
                       <span className={`status-chip ${statusClassName(order.status)}`}>
                         {statusLabel(order.status)}
@@ -588,45 +823,90 @@ export function OrdersPage() {
 
                     <div className="client-mobile-grid">
                       <p>
-                        <span>Produit</span>
-                        <strong>{order.productName}</strong>
-                      </p>
-                      <p>
-                        <span>Quantité</span>
-                        <strong>{order.quantity}</strong>
-                      </p>
-                      <p>
                         <span>Priorité</span>
                         <strong>{priorityLabel(order.priority)}</strong>
                       </p>
                       <p>
                         <span>Livraison prévue</span>
-                        <strong>{formatOrderDateTime(order.expectedDeliveryDate)}</strong>
+                        <strong>{formatOrderDateTime(order.deliveryDueAt)}</strong>
+                        <small className={`orders-deadline-hint ${deliveryHint.className}`}>
+                          {deliveryHint.label}
+                        </small>
+                      </p>
+                      <p>
+                        <span>Note</span>
+                        <strong>{order.note || "-"}</strong>
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      className="btn btn-ghost orders-action-btn"
-                      onClick={() => toggleDeliveryStatus(order.id)}
-                    >
-                      {order.status === "to-deliver" ? (
-                        <>
-                          <CheckCircle2 size={15} />
-                          Marquer livrée
-                        </>
-                      ) : (
-                        <>
-                          <Truck size={15} />
-                          Remettre à livrer
-                        </>
-                      )}
-                    </button>
+                    <div className="table-actions-icons">
+                      <button
+                        type="button"
+                        className="btn btn-ghost orders-action-btn"
+                        onClick={() => handleToggleDeliveryStatus(order)}
+                        disabled={busyOrderId === order.id}
+                      >
+                        {order.status === "to-deliver" ? (
+                          <>
+                            <CheckCircle2 size={15} />
+                            Marquer livrée
+                          </>
+                        ) : (
+                          <>
+                            <Truck size={15} />
+                            Remettre à livrer
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost orders-action-btn"
+                        onClick={() => handleDeleteOrder(order.id)}
+                        disabled={busyOrderId === order.id}
+                      >
+                        <Trash2 size={15} />
+                        Supprimer
+                      </button>
+                    </div>
                   </article>
-                ))}
+                )})}
               </div>
             </>
           )}
+
+          <div className="clients-pagination">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={pageSafe === 1 || isLoading}
+            >
+              Précédent
+            </button>
+
+            <div className="clients-pagination-pages">
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+                <button
+                  key={pageNumber}
+                  type="button"
+                  className={`page-chip ${pageNumber === pageSafe ? "active" : ""}`}
+                  onClick={() => setPage(pageNumber)}
+                  disabled={isLoading}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              disabled={pageSafe === totalPages || isLoading}
+            >
+              Suivant
+            </button>
+          </div>
         </>
       )}
     </section>
