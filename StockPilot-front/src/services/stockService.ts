@@ -272,3 +272,93 @@ export async function listStockHistory(params?: {
     })
   }
 }
+
+type BackendStockStatus = "ACTIVE" | "INACTIVE"
+
+type BackendStockStatusItem = {
+  id?: string
+  sku?: string
+  name?: string
+  stockQuantity?: number | string
+  stockMinThreshold?: number | string
+  status?: BackendStockStatus
+  updatedAt?: string
+  categoryName?: string | null
+}
+
+type StockStatusResponse = {
+  data?: BackendStockStatusItem[]
+  meta?: {
+    page?: number
+    limit?: number
+    total?: number
+  }
+}
+
+export type StockStatusItem = {
+  id: string
+  sku: string
+  name: string
+  stockQuantity: number
+  stockMinThreshold: number
+  status: "active" | "inactive"
+  updatedAt: string
+  categoryName?: string
+}
+
+export type StockStatusListResult = {
+  data: StockStatusItem[]
+  meta: {
+    page: number
+    limit: number
+    total: number
+  }
+}
+
+function mapStockStatusItem(item: BackendStockStatusItem): StockStatusItem {
+  return {
+    id: item.id?.trim() || `stk-${Math.random().toString(36).slice(2, 10)}`,
+    sku: item.sku?.trim() || "N/A",
+    name: item.name?.trim() || "Produit",
+    stockQuantity: Number(item.stockQuantity ?? 0) || 0,
+    stockMinThreshold: Number(item.stockMinThreshold ?? 0) || 0,
+    status: item.status === "INACTIVE" ? "inactive" : "active",
+    updatedAt: item.updatedAt || new Date().toISOString(),
+    categoryName: item.categoryName?.trim() || undefined,
+  }
+}
+
+export async function listStockStatus(params?: {
+  page?: number
+  limit?: number
+}): Promise<StockStatusListResult> {
+  const page = Math.max(1, params?.page ?? 1)
+  const limit = Math.max(1, params?.limit ?? 20)
+
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.get<StockStatusResponse>(`${apiBaseUrl}/stock/status`, {
+        params: {
+          page,
+          limit,
+        },
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    const items = (response.data?.data ?? []).map(mapStockStatusItem)
+
+    return {
+      data: items,
+      meta: {
+        page: response.data?.meta?.page ?? page,
+        limit: response.data?.meta?.limit ?? limit,
+        total: response.data?.meta?.total ?? items.length,
+      },
+    }
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Chargement de l'état du stock impossible."), {
+      cause: error,
+    })
+  }
+}
