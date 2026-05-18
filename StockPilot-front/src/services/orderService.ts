@@ -39,6 +39,14 @@ type DeleteClientOrderResponse = {
   }
 }
 
+type ClientOrdersStatsResponse = {
+  data?: {
+    toDeliver?: number
+    delivered?: number
+    highPriority?: number
+  }
+}
+
 export type OrderPriority = "high" | "medium" | "low"
 export type OrderStatus = "to-deliver" | "delivered"
 
@@ -60,6 +68,12 @@ export type ListClientOrdersResult = {
     limit: number
     total: number
   }
+}
+
+export type ClientOrdersStats = {
+  toDeliver: number
+  delivered: number
+  highPriority: number
 }
 
 function resolveErrorMessage(error: unknown, fallback: string): string {
@@ -279,6 +293,26 @@ export async function deleteClientOrder(orderId: string): Promise<string> {
     return response.data?.data?.id ?? orderId
   } catch (error) {
     throw new Error(resolveErrorMessage(error, "Suppression commande impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function getClientOrdersStats(): Promise<ClientOrdersStats> {
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.get<ClientOrdersStatsResponse>(`${apiBaseUrl}/client-orders/stats`, {
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    return {
+      toDeliver: response.data?.data?.toDeliver ?? 0,
+      delivered: response.data?.data?.delivered ?? 0,
+      highPriority: response.data?.data?.highPriority ?? 0,
+    }
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Chargement des statistiques commandes impossible."), {
       cause: error,
     })
   }

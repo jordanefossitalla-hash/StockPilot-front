@@ -3,18 +3,22 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  Loader2,
   Plus,
   Search,
   Trash2,
   Truck,
+  X,
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { listClients } from "../services/clientService"
 import {
   createClientOrder,
   deleteClientOrder,
+  getClientOrdersStats,
   listClientOrders,
   updateClientOrderDeliveryStatus,
+  type ClientOrdersStats,
   type ClientOrder,
   type OrderPriority,
   type OrderStatus,
@@ -143,7 +147,8 @@ export function OrdersPage() {
   const [isClientsLoading, setIsClientsLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [busyOrderId, setBusyOrderId] = useState<string | null>(null)
+  const [statusBusyOrderId, setStatusBusyOrderId] = useState<string | null>(null)
+  const [deleteBusyOrderId, setDeleteBusyOrderId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [formError, setFormError] = useState("")
@@ -158,6 +163,12 @@ export function OrdersPage() {
   const [search, setSearch] = useState("")
   const [totalOrders, setTotalOrders] = useState(0)
   const [page, setPage] = useState(1)
+  const [orderToDelete, setOrderToDelete] = useState<ClientOrder | null>(null)
+  const [stats, setStats] = useState<ClientOrdersStats>({
+    toDeliver: 0,
+    delivered: 0,
+    highPriority: 0,
+  })
 
   useEffect(() => {
     let isActive = true
@@ -254,34 +265,36 @@ export function OrdersPage() {
   useEffect(() => {
     let isActive = true
 
-    async function refreshPendingCount() {
+    async function fetchOrdersStats() {
       try {
-        const result = await listClientOrders({
-          status: "to-deliver",
-          page: 1,
-          limit: 1,
-        })
+        const result = await getClientOrdersStats()
 
         if (!isActive) {
           return
         }
 
-        setPendingOrdersCount(result.meta.total)
+        setStats(result)
+        setPendingOrdersCount(result.toDeliver)
       } catch {
         if (!isActive) {
           return
         }
 
+        setStats({
+          toDeliver: 0,
+          delivered: 0,
+          highPriority: 0,
+        })
         setPendingOrdersCount(0)
       }
     }
 
-    void refreshPendingCount()
+    void fetchOrdersStats()
 
     return () => {
       isActive = false
     }
-  }, [activePriorityFilter, activeStatusTab, busyOrderId, isSubmitting, orders, page, totalOrders])
+  }, [deleteBusyOrderId, isSubmitting, statusBusyOrderId, totalOrders])
 
   useEffect(() => {
     setPage(1)
@@ -309,34 +322,6 @@ export function OrdersPage() {
     })
   }, [clientNameById, orders, search])
 
-  const metrics = useMemo(() => {
-    return orders.reduce(
-      (acc, order) => {
-        acc.total += 1
-
-        if (order.status === "to-deliver") {
-          acc.toDeliver += 1
-        }
-
-        if (order.status === "delivered") {
-          acc.delivered += 1
-        }
-
-        if (order.priority === "high") {
-          acc.highPriority += 1
-        }
-
-        return acc
-      },
-      {
-        total: 0,
-        toDeliver: 0,
-        delivered: 0,
-        highPriority: 0,
-      },
-    )
-  }, [orders])
-
   const totalPages = Math.max(1, Math.ceil(totalOrders / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages)
   const startRow = totalOrders === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
@@ -348,14 +333,14 @@ export function OrdersPage() {
 
   function statusTabCount(tab: OrderStatusTab) {
     if (tab === "all") {
-      return metrics.total
+      return stats.toDeliver + stats.delivered
     }
 
     if (tab === "to-deliver") {
-      return metrics.toDeliver
+      return stats.toDeliver
     }
 
-    return metrics.delivered
+    return stats.delivered
   }
 
   function clearListFilters() {
@@ -447,7 +432,7 @@ export function OrdersPage() {
 
   async function handleToggleDeliveryStatus(order: ClientOrder) {
     setActionError(null)
-    setBusyOrderId(order.id)
+    setStatusBusyOrderId(order.id)
 
     try {
       const nextStatus: OrderStatus =
@@ -462,18 +447,22 @@ export function OrdersPage() {
           : "Mise à jour du statut impossible.",
       )
     } finally {
-      setBusyOrderId(null)
+      setStatusBusyOrderId(null)
     }
   }
 
-  async function handleDeleteOrder(orderId: string) {
-    const confirmed = window.confirm("Supprimer cette commande ?")
-    if (!confirmed) {
+  function requestDeleteOrder(order: ClientOrder) {
+    setOrderToDelete(order)
+  }
+
+  async function confirmDeleteOrder() {
+    if (!orderToDelete) {
       return
     }
 
+    const orderId = orderToDelete.id
     setActionError(null)
-    setBusyOrderId(orderId)
+    setDeleteBusyOrderId(orderId)
 
     try {
       await deleteClientOrder(orderId)
@@ -483,12 +472,14 @@ export function OrdersPage() {
       } else {
         await refreshCurrentOrders()
       }
+
+      setOrderToDelete(null)
     } catch (error) {
       setActionError(
         error instanceof Error ? error.message : "Suppression commande impossible.",
       )
     } finally {
-      setBusyOrderId(null)
+      setDeleteBusyOrderId(null)
     }
   }
 
@@ -539,20 +530,20 @@ export function OrdersPage() {
 
         <div className="clients-stats-grid orders-stats-grid">
           <article className="stat-card">
-            <span>Total (page)</span>
-            <strong>{metrics.total}</strong>
+            <span>Total commandes</span>
+            <strong>{stats.toDeliver + stats.delivered}</strong>
           </article>
           <article className="stat-card">
-            <span>À livrer (page)</span>
-            <strong>{metrics.toDeliver}</strong>
+            <span>À livrer</span>
+            <strong>{stats.toDeliver}</strong>
           </article>
           <article className="stat-card">
-            <span>Livrées (page)</span>
-            <strong>{metrics.delivered}</strong>
+            <span>Livrées</span>
+            <strong>{stats.delivered}</strong>
           </article>
           <article className="stat-card">
             <span>Priorité haute</span>
-            <strong>{metrics.highPriority}</strong>
+            <strong>{stats.highPriority}</strong>
           </article>
         </div>
       </div>
@@ -775,9 +766,14 @@ export function OrdersPage() {
                               type="button"
                               className="btn btn-ghost orders-action-btn"
                               onClick={() => handleToggleDeliveryStatus(order)}
-                              disabled={busyOrderId === order.id}
+                              disabled={statusBusyOrderId === order.id || deleteBusyOrderId === order.id}
                             >
-                              {order.status === "to-deliver" ? (
+                              {statusBusyOrderId === order.id ? (
+                                <>
+                                  <Loader2 size={15} className="icon-spin" />
+                                  Mise à jour...
+                                </>
+                              ) : order.status === "to-deliver" ? (
                                 <>
                                   <CheckCircle2 size={15} />
                                   Marquer livrée
@@ -792,11 +788,20 @@ export function OrdersPage() {
                             <button
                               type="button"
                               className="btn btn-ghost orders-action-btn"
-                              onClick={() => handleDeleteOrder(order.id)}
-                              disabled={busyOrderId === order.id}
+                              onClick={() => requestDeleteOrder(order)}
+                              disabled={deleteBusyOrderId === order.id || statusBusyOrderId === order.id}
                             >
-                              <Trash2 size={15} />
-                              Supprimer
+                              {deleteBusyOrderId === order.id ? (
+                                <>
+                                  <Loader2 size={15} className="icon-spin" />
+                                  Suppression...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 size={15} />
+                                  Supprimer
+                                </>
+                              )}
                             </button>
                           </div>
                         </td>
@@ -844,9 +849,14 @@ export function OrdersPage() {
                         type="button"
                         className="btn btn-ghost orders-action-btn"
                         onClick={() => handleToggleDeliveryStatus(order)}
-                        disabled={busyOrderId === order.id}
+                        disabled={statusBusyOrderId === order.id || deleteBusyOrderId === order.id}
                       >
-                        {order.status === "to-deliver" ? (
+                        {statusBusyOrderId === order.id ? (
+                          <>
+                            <Loader2 size={15} className="icon-spin" />
+                            Mise à jour...
+                          </>
+                        ) : order.status === "to-deliver" ? (
                           <>
                             <CheckCircle2 size={15} />
                             Marquer livrée
@@ -861,11 +871,20 @@ export function OrdersPage() {
                       <button
                         type="button"
                         className="btn btn-ghost orders-action-btn"
-                        onClick={() => handleDeleteOrder(order.id)}
-                        disabled={busyOrderId === order.id}
+                        onClick={() => requestDeleteOrder(order)}
+                        disabled={deleteBusyOrderId === order.id || statusBusyOrderId === order.id}
                       >
-                        <Trash2 size={15} />
-                        Supprimer
+                        {deleteBusyOrderId === order.id ? (
+                          <>
+                            <Loader2 size={15} className="icon-spin" />
+                            Suppression...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 size={15} />
+                            Supprimer
+                          </>
+                        )}
                       </button>
                     </div>
                   </article>
@@ -873,6 +892,70 @@ export function OrdersPage() {
               </div>
             </>
           )}
+
+          {orderToDelete ? (
+            <div
+              className="modal-backdrop"
+              role="presentation"
+              onClick={() => {
+                if (!deleteBusyOrderId) {
+                  setOrderToDelete(null)
+                }
+              }}
+            >
+              <article
+                className="modal-card modal-danger"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Confirmer suppression commande"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="modal-head">
+                  <h3>Supprimer commande</h3>
+                  <button
+                    type="button"
+                    className="icon-action-btn"
+                    aria-label="Fermer"
+                    onClick={() => {
+                      if (!deleteBusyOrderId) {
+                        setOrderToDelete(null)
+                      }
+                    }}
+                    disabled={Boolean(deleteBusyOrderId)}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <p className="modal-warning-text">
+                  Voulez-vous vraiment supprimer la commande de
+                  {" "}
+                  <strong>{clientNameById.get(orderToDelete.clientId) || orderToDelete.clientId}</strong>
+                  {" "}
+                  ? Cette action est irréversible.
+                </p>
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => setOrderToDelete(null)}
+                    disabled={Boolean(deleteBusyOrderId)}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={confirmDeleteOrder}
+                    disabled={Boolean(deleteBusyOrderId)}
+                  >
+                    {deleteBusyOrderId ? "Suppression..." : "Supprimer"}
+                  </button>
+                </div>
+              </article>
+            </div>
+          ) : null}
 
           <div className="clients-pagination">
             <button
