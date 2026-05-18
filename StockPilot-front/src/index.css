@@ -779,6 +779,25 @@ button {
   position: relative;
 }
 
+.bottom-nav-badge {
+  position: absolute;
+  top: 0.22rem;
+  right: 0.5rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.24rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-danger) 92%, #ffffff 8%);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
 .bottom-nav-item:hover {
   color: var(--color-text);
   background: var(--color-surface-raised);

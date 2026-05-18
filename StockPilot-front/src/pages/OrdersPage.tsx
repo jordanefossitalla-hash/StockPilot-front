@@ -7,9 +7,10 @@ import {
   Search,
   Truck,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { clientsData } from "../features/clients/clientData"
 import { productsData } from "../features/products/productData"
+import { setPendingOrdersCount } from "../utils/orderPendingSignal"
 
 type OrderPriority = "high" | "medium" | "low"
 type OrderStatus = "to-deliver" | "delivered"
@@ -196,6 +197,10 @@ export function OrdersPage() {
       return statusOk && searchOk
     })
   }, [orders, activeStatusTab, search])
+
+  useEffect(() => {
+    setPendingOrdersCount(metrics.toDeliver)
+  }, [metrics.toDeliver])
 
   function statusTabCount(tab: OrderStatusTab) {
     if (tab === "all") {
