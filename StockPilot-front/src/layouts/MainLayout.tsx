@@ -19,7 +19,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/categories": "Catégories",
   "/stock": "État du stock",
   "/suppliers": "Fournisseurs",
-  "/reports": "Rapports",
   "/settings": "Paramètres",
 }
 

@@ -9,13 +9,17 @@ import {
   type StockEntryFormValues,
 } from "../features/stock/stockSchemas"
 import { listProducts, type ProductListItem } from "../services/productService"
+import { listSuppliers } from "../services/supplierService"
 import { createStockEntry } from "../services/stockService"
+import type { Supplier } from "../features/suppliers/supplierTypes"
 
 export function StockEntryPage() {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [products, setProducts] = useState<ProductListItem[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(true)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
@@ -26,6 +30,7 @@ export function StockEntryPage() {
   } = useForm<StockEntryFormValues>({
     resolver: zodResolver(stockEntrySchema),
     defaultValues: {
+      supplierId: "",
       productId: "",
       quantity: 1,
       unitCost: 0,
@@ -37,37 +42,46 @@ export function StockEntryPage() {
   useEffect(() => {
     let isActive = true
 
-    async function fetchProducts() {
+    async function fetchFormOptions() {
       setIsLoadingProducts(true)
+      setIsLoadingSuppliers(true)
 
       try {
-        const result = await listProducts({
-          status: "active",
-          page: 1,
-          limit: 100,
-        })
+        const [productsResult, suppliersResult] = await Promise.all([
+          listProducts({
+            status: "active",
+            page: 1,
+            limit: 100,
+          }),
+          listSuppliers({ page: 1, limit: 100 }),
+        ])
 
         if (!isActive) {
           return
         }
 
-        setProducts(result.data)
-        setValue("productId", result.data[0]?.id ?? "")
+        setProducts(productsResult.data)
+        setSuppliers(suppliersResult.data)
+        setValue("productId", productsResult.data[0]?.id ?? "")
+        setValue("supplierId", suppliersResult.data[0]?.id ?? "")
       } catch {
         if (!isActive) {
           return
         }
 
         setProducts([])
+        setSuppliers([])
         setValue("productId", "")
+        setValue("supplierId", "")
       } finally {
         if (isActive) {
           setIsLoadingProducts(false)
+          setIsLoadingSuppliers(false)
         }
       }
     }
 
-    void fetchProducts()
+    void fetchFormOptions()
 
     return () => {
       isActive = false
@@ -80,6 +94,7 @@ export function StockEntryPage() {
 
     try {
       await createStockEntry({
+        supplierId: values.supplierId,
         productId: values.productId,
         quantity: values.quantity,
         unitCost: values.unitCost,
@@ -117,6 +132,25 @@ export function StockEntryPage() {
 
       <form className="client-form-card" onSubmit={onSubmit}>
         <div className="client-form-grid">
+          <label className="field-block field-block-full">
+            <span>Fournisseur *</span>
+            <select
+              {...register("supplierId")}
+              disabled={isLoadingSuppliers || suppliers.length === 0}
+            >
+              {suppliers.length === 0 ? (
+                <option value="">Aucun fournisseur disponible</option>
+              ) : (
+                suppliers.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))
+              )}
+            </select>
+            {errors.supplierId ? <small>{errors.supplierId.message}</small> : null}
+          </label>
+
           <label className="field-block field-block-full">
             <span>Produit *</span>
             <select {...register("productId")} disabled={isLoadingProducts || products.length === 0}>
@@ -162,7 +196,17 @@ export function StockEntryPage() {
           <Link to="/stock" className="btn btn-ghost">
             Annuler
           </Link>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting || isLoadingProducts || products.length === 0}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={
+              isSubmitting ||
+              isLoadingProducts ||
+              isLoadingSuppliers ||
+              products.length === 0 ||
+              suppliers.length === 0
+            }
+          >
             <Save size={16} />
             {isSubmitting ? "Traitement..." : "Valider entrée"}
           </button>

@@ -137,6 +137,7 @@ async function executeWithRefreshRetry<T>(
 }
 
 export async function createStockEntry(payload: {
+  supplierId: string
   productId: string
   quantity: number
   unitCost: number
@@ -148,6 +149,7 @@ export async function createStockEntry(payload: {
       return axios.post<StockEntryResponse>(
         `${apiBaseUrl}/stock/entries`,
         {
+          supplierId: payload.supplierId.trim(),
           productId: payload.productId.trim(),
           quantity: payload.quantity,
           unitCost: payload.unitCost,

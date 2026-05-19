@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 export const stockEntrySchema = z.object({
+  supplierId: z.string().trim().min(1, "Le fournisseur est obligatoire"),
   productId: z.string().trim().min(1, "Le produit est obligatoire"),
   quantity: z
     .number({ message: "La quantite est obligatoire" })

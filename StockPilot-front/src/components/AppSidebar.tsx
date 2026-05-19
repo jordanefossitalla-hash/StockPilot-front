@@ -4,7 +4,6 @@ import {
   Boxes,
   ChevronLeft,
   ChevronRight,
-  FileBarChart2,
   LayoutDashboard,
   LogOut,
   Package,
@@ -53,7 +52,6 @@ const navGroups: NavGroup[] = [
   {
     title: "Analyse",
     items: [
-      { to: "/reports", label: "Rapports", icon: FileBarChart2 },
       { to: "/settings", label: "Paramètres", icon: Settings },
     ],
   },

@@ -64,6 +64,67 @@ type DeleteSupplierResponse = {
   }
 }
 
+type CreateSupplierPaymentResponse = {
+  data?: {
+    id?: string
+    supplierId?: string
+    orderId?: string | null
+    amount?: string | number
+    paidAt?: string
+    recordedBy?: string | null
+  }
+}
+
+type ListSupplierPaymentsResponse = {
+  data?: Array<{
+    id?: string
+    supplierId?: string
+    orderId?: string | null
+    amount?: string | number
+    paidAt?: string
+    recordedBy?: string | null
+  }>
+  meta?: {
+    page?: number
+    limit?: number
+    total?: number
+  }
+}
+
+type SupplierReportResponse = {
+  data?: {
+    supplier?: BackendSupplier
+    period?: {
+      from?: string
+      to?: string
+    }
+    summary?: {
+      totalOrdered?: number
+      totalReceived?: number
+      totalPaid?: number
+      periodBalanceDelta?: number
+      openingBalance?: number
+      closingBalance?: number
+      currentBalance?: number
+    }
+    receivedProducts?: Array<{
+      productId?: string
+      sku?: string
+      name?: string
+      quantity?: number
+      totalCost?: number
+    }>
+    payments?: Array<{
+      id?: string
+      amount?: string | number
+      paidAt?: string
+      recordedBy?: string | null
+    }>
+    orders?: Array<Record<string, unknown>>
+    concernedOrders?: Array<Record<string, unknown>>
+  }
+}
+
 type ListSuppliersParams = {
   status?: SupplierStatus
   search?: string
@@ -78,6 +139,56 @@ type ListSuppliersResult = {
     limit: number
     total: number
   }
+}
+
+export type SupplierPayment = {
+  id: string
+  supplierId: string
+  orderId?: string
+  amount: number
+  paidAt: string
+  recordedBy?: string
+}
+
+export type ListSupplierPaymentsResult = {
+  data: SupplierPayment[]
+  meta: {
+    page: number
+    limit: number
+    total: number
+  }
+}
+
+export type SupplierReportData = {
+  supplier: Supplier
+  period: {
+    from: string
+    to: string
+  }
+  summary: {
+    totalOrdered: number
+    totalReceived: number
+    totalPaid: number
+    periodBalanceDelta: number
+    openingBalance: number
+    closingBalance: number
+    currentBalance: number
+  }
+  receivedProducts: Array<{
+    productId: string
+    sku: string
+    name: string
+    quantity: number
+    totalCost: number
+  }>
+  payments: Array<{
+    id: string
+    amount: number
+    paidAt: string
+    recordedBy?: string
+  }>
+  orders: Array<Record<string, unknown>>
+  concernedOrders: Array<Record<string, unknown>>
 }
 
 function resolveErrorMessage(error: unknown, fallback: string): string {
@@ -344,6 +455,166 @@ export async function deleteSupplier(supplierId: string): Promise<string> {
     return deletedId
   } catch (error) {
     throw new Error(resolveErrorMessage(error, "Suppression fournisseur impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function createSupplierPayment(
+  supplierId: string,
+  payload: {
+    amount: number
+    paidAt: string
+    recordedBy?: string
+  },
+): Promise<SupplierPayment> {
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.post<CreateSupplierPaymentResponse>(
+        `${apiBaseUrl}/suppliers/${supplierId}/payments`,
+        {
+          amount: payload.amount,
+          paidAt: payload.paidAt,
+          recordedBy: payload.recordedBy?.trim() || undefined,
+        },
+        {
+          headers: getAuthHeader(token),
+        },
+      )
+    }, false)
+
+    const payment = response.data?.data
+    if (!payment?.id || !payment?.supplierId) {
+      throw new Error("Réponse versement fournisseur invalide du serveur.")
+    }
+
+    return {
+      id: payment.id,
+      supplierId: payment.supplierId,
+      orderId: payment.orderId ?? undefined,
+      amount: Number(payment.amount ?? 0) || 0,
+      paidAt: payment.paidAt || new Date().toISOString(),
+      recordedBy: payment.recordedBy?.trim() || undefined,
+    }
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Versement fournisseur impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function listSupplierPayments(
+  supplierId: string,
+  params?: {
+    from?: string
+    to?: string
+    page?: number
+    limit?: number
+  },
+): Promise<ListSupplierPaymentsResult> {
+  const page = Math.max(1, params?.page ?? 1)
+  const limit = Math.max(1, params?.limit ?? 20)
+
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.get<ListSupplierPaymentsResponse>(
+        `${apiBaseUrl}/suppliers/${supplierId}/payments`,
+        {
+          params: {
+            from: params?.from?.trim() || undefined,
+            to: params?.to?.trim() || undefined,
+            page,
+            limit,
+          },
+          headers: getAuthHeader(token),
+        },
+      )
+    }, false)
+
+    const items = (response.data?.data ?? [])
+      .filter((item) => item?.id && item?.supplierId)
+      .map((item) => ({
+        id: item.id as string,
+        supplierId: item.supplierId as string,
+        orderId: item.orderId ?? undefined,
+        amount: Number(item.amount ?? 0) || 0,
+        paidAt: item.paidAt || new Date().toISOString(),
+        recordedBy: item.recordedBy?.trim() || undefined,
+      }))
+
+    return {
+      data: items,
+      meta: {
+        page: response.data?.meta?.page ?? page,
+        limit: response.data?.meta?.limit ?? limit,
+        total: response.data?.meta?.total ?? items.length,
+      },
+    }
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Chargement des versements fournisseur impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function getSupplierReport(
+  supplierId: string,
+  params: { from: string; to: string },
+): Promise<SupplierReportData> {
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.get<SupplierReportResponse>(`${apiBaseUrl}/suppliers/${supplierId}/report`, {
+        params: {
+          from: params.from,
+          to: params.to,
+        },
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    const data = response.data?.data
+    const supplier = mapBackendSupplier(data?.supplier ?? {})
+
+    const periodFrom = data?.period?.from
+    const periodTo = data?.period?.to
+
+    if (!periodFrom || !periodTo) {
+      throw new Error("Période du rapport invalide.")
+    }
+
+    return {
+      supplier,
+      period: {
+        from: periodFrom,
+        to: periodTo,
+      },
+      summary: {
+        totalOrdered: Number(data?.summary?.totalOrdered ?? 0) || 0,
+        totalReceived: Number(data?.summary?.totalReceived ?? 0) || 0,
+        totalPaid: Number(data?.summary?.totalPaid ?? 0) || 0,
+        periodBalanceDelta: Number(data?.summary?.periodBalanceDelta ?? 0) || 0,
+        openingBalance: Number(data?.summary?.openingBalance ?? 0) || 0,
+        closingBalance: Number(data?.summary?.closingBalance ?? 0) || 0,
+        currentBalance: Number(data?.summary?.currentBalance ?? 0) || 0,
+      },
+      receivedProducts: (data?.receivedProducts ?? []).map((entry) => ({
+        productId: entry.productId ?? "",
+        sku: entry.sku ?? "-",
+        name: entry.name ?? "Produit",
+        quantity: Number(entry.quantity ?? 0) || 0,
+        totalCost: Number(entry.totalCost ?? 0) || 0,
+      })),
+      payments: (data?.payments ?? []).map((entry) => ({
+        id: entry.id ?? "",
+        amount: Number(entry.amount ?? 0) || 0,
+        paidAt: entry.paidAt ?? new Date().toISOString(),
+        recordedBy: entry.recordedBy?.trim() || undefined,
+      })),
+      orders: data?.orders ?? [],
+      concernedOrders: data?.concernedOrders ?? [],
+    }
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Génération du rapport fournisseur impossible."), {
       cause: error,
     })
   }

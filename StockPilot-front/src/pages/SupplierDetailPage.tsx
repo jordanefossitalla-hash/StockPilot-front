@@ -1,20 +1,28 @@
-import { ArrowLeft, CreditCard, FilePenLine, PackagePlus, Search } from "lucide-react"
+import { ArrowLeft, ChevronDown, CreditCard, FilePenLine, Search, SlidersHorizontal } from "lucide-react"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { formatDate, formatFcfa } from "../features/suppliers/supplierFormatters"
-import type { Supplier, SupplierHistoryType } from "../features/suppliers/supplierTypes"
-import { getSupplierByIdApi } from "../services/supplierService"
+import type { Supplier } from "../features/suppliers/supplierTypes"
+import {
+  createSupplierPayment,
+  getSupplierByIdApi,
+  listSupplierPayments,
+  type SupplierPayment,
+} from "../services/supplierService"
 
-function historyLabel(type: SupplierHistoryType) {
-  if (type === "supply") {
-    return "Réception marchandise"
-  }
+type PaymentPeriodPreset = "all" | "this-week" | "this-month" | "custom"
 
-  if (type === "payment") {
-    return "Versement"
-  }
+function toDateInput(value: Date): string {
+  return value.toISOString().slice(0, 10)
+}
 
-  return "Ajustement"
+function getStartOfWeek(date: Date): Date {
+  const copy = new Date(date)
+  const day = copy.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
+  copy.setUTCDate(copy.getUTCDate() + diff)
+  copy.setUTCHours(0, 0, 0, 0)
+  return copy
 }
 
 export function SupplierDetailPage() {
@@ -29,16 +37,21 @@ export function SupplierDetailPage() {
   const [paymentReference, setPaymentReference] = useState("")
   const [paymentNote, setPaymentNote] = useState("")
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false)
 
-  const [supplyAmount, setSupplyAmount] = useState("")
-  const [supplyDate, setSupplyDate] = useState(new Date().toISOString().slice(0, 10))
-  const [supplyReference, setSupplyReference] = useState("")
-  const [supplyNote, setSupplyNote] = useState("")
-  const [supplyError, setSupplyError] = useState<string | null>(null)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-  const [supplyModalOpen, setSupplyModalOpen] = useState(false)
 
   const [movementQuery, setMovementQuery] = useState("")
+  const [payments, setPayments] = useState<SupplierPayment[]>([])
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false)
+  const [paymentsError, setPaymentsError] = useState<string | null>(null)
+  const [paymentsPage, setPaymentsPage] = useState(1)
+  const [paymentsMeta, setPaymentsMeta] = useState({ page: 1, limit: 20, total: 0 })
+  const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0)
+  const [paymentPeriodPreset, setPaymentPeriodPreset] = useState<PaymentPeriodPreset>("this-month")
+  const [paymentFromDate, setPaymentFromDate] = useState("")
+  const [paymentToDate, setPaymentToDate] = useState("")
+  const [isPaymentFiltersOpen, setIsPaymentFiltersOpen] = useState(false)
 
   const notice =
     (location.state as { notice?: string } | null)?.notice ?? null
@@ -86,59 +99,105 @@ export function SupplierDetailPage() {
     }
   }, [supplierId])
 
-  const historyWithBalance = useMemo(() => {
-    const movementsOnly = (supplierState?.history ?? []).filter(
-      (entry) => entry.type === "payment" || entry.type === "supply",
-    )
+  useEffect(() => {
+    const today = new Date()
 
-    const sortedAscending = [...movementsOnly].sort((first, second) => {
-      return first.date.localeCompare(second.date)
-    })
+    if (paymentPeriodPreset === "this-week") {
+      setPaymentFromDate(toDateInput(getStartOfWeek(today)))
+      setPaymentToDate(toDateInput(today))
+      return
+    }
 
-    const startingBalance = supplierState?.debtTotal ?? 0
+    if (paymentPeriodPreset === "this-month") {
+      const startOfMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+      setPaymentFromDate(toDateInput(startOfMonth))
+      setPaymentToDate(toDateInput(today))
+      return
+    }
 
-    const withBalanceAscending = sortedAscending.reduce<
-      Array<(typeof sortedAscending)[number] & { delta: number; runningBalance: number }>
-    >((accumulator, entry) => {
-      const previousBalance =
-        accumulator.length > 0
-          ? accumulator[accumulator.length - 1].runningBalance
-          : startingBalance
-      const delta = entry.type === "payment" ? entry.amount : -entry.amount
-      const runningBalance = previousBalance + delta
+    if (paymentPeriodPreset === "all") {
+      setPaymentFromDate("")
+      setPaymentToDate("")
+    }
+  }, [paymentPeriodPreset])
 
-      accumulator.push({
-        ...entry,
-        delta,
-        runningBalance,
-      })
+  useEffect(() => {
+    setPaymentsPage(1)
+  }, [paymentFromDate, paymentToDate, paymentPeriodPreset])
 
-      return accumulator
-    }, [])
+  useEffect(() => {
+    let isActive = true
 
-    return withBalanceAscending.reverse()
-  }, [supplierState?.debtTotal, supplierState?.history])
+    async function fetchPayments() {
+      if (!supplierId) {
+        return
+      }
 
-  const currentBalance = historyWithBalance[0]?.runningBalance ?? supplierState?.debtTotal ?? 0
+      setIsLoadingPayments(true)
+      setPaymentsError(null)
 
-  const filteredMovements = useMemo(() => {
+      try {
+        const fromIso = paymentFromDate
+          ? new Date(`${paymentFromDate}T00:00:00.000Z`).toISOString()
+          : undefined
+        const toIso = paymentToDate
+          ? new Date(`${paymentToDate}T23:59:59.999Z`).toISOString()
+          : undefined
+
+        const result = await listSupplierPayments(supplierId, {
+          from: fromIso,
+          to: toIso,
+          page: paymentsPage,
+          limit: 20,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setPayments(result.data)
+        setPaymentsMeta(result.meta)
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        setPayments([])
+        setPaymentsError(
+          error instanceof Error
+            ? error.message
+            : "Chargement des versements impossible.",
+        )
+      } finally {
+        if (isActive) {
+          setIsLoadingPayments(false)
+        }
+      }
+    }
+
+    void fetchPayments()
+
+    return () => {
+      isActive = false
+    }
+  }, [supplierId, paymentsPage, paymentFromDate, paymentToDate, paymentsRefreshKey])
+
+  const filteredPayments = useMemo(() => {
     const search = movementQuery.trim().toLowerCase()
 
     if (!search) {
-      return historyWithBalance
+      return payments
     }
 
-    return historyWithBalance.filter((entry) => {
+    return payments.filter((entry) => {
       return (
-        historyLabel(entry.type).toLowerCase().includes(search) ||
-        entry.description.toLowerCase().includes(search) ||
-        (entry.reference ?? "").toLowerCase().includes(search) ||
-        (entry.method ?? "").toLowerCase().includes(search)
+        entry.id.toLowerCase().includes(search) ||
+        (entry.recordedBy ?? "").toLowerCase().includes(search)
       )
     })
-  }, [historyWithBalance, movementQuery])
+  }, [payments, movementQuery])
 
-  function handleRecordPayment(event: FormEvent<HTMLFormElement>) {
+  async function handleRecordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const amount = Number(paymentAmount)
 
@@ -147,77 +206,50 @@ export function SupplierDetailPage() {
       return
     }
 
-    setSupplierState((current) => {
-      if (!current) {
-        return current
-      }
-
-      return {
-        ...current,
-        debtTotal: current.debtTotal + amount,
-        paymentsTotal: current.paymentsTotal + amount,
-        history: [
-          {
-            id: `SHP-${Date.now()}`,
-            date: paymentDate,
-            type: "payment",
-            description:
-              paymentNote.trim() || "Paiement fournisseur enregistré manuellement",
-            amount,
-            reference: paymentReference.trim() || `PAY-${Date.now().toString().slice(-6)}`,
-            method: paymentMethod,
-          },
-          ...current.history,
-        ],
-      }
-    })
-
-    setPaymentAmount("")
-    setPaymentDate(new Date().toISOString().slice(0, 10))
-    setPaymentReference("")
-    setPaymentNote("")
-    setPaymentError(null)
-    setPaymentModalOpen(false)
-  }
-
-  function handleRecordSupply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const amount = Number(supplyAmount)
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setSupplyError("Montant invalide. Saisissez une valeur supérieure à 0.")
+    if (!supplierState) {
+      setPaymentError("Fournisseur introuvable.")
       return
     }
 
-    setSupplierState((current) => {
-      if (!current) {
-        return current
-      }
+    setIsRecordingPayment(true)
+    setPaymentError(null)
 
-      return {
-        ...current,
-        debtTotal: current.debtTotal - amount,
-        history: [
-          {
-            id: `SHS-${Date.now()}`,
-            date: supplyDate,
-            type: "supply",
-            description:
-              supplyNote.trim() || "Réception marchandise enregistrée manuellement",
-            amount,
-            reference: supplyReference.trim() || `SUP-${Date.now().toString().slice(-6)}`,
-          },
-          ...current.history,
-        ],
-      }
-    })
+    try {
+      const payment = await createSupplierPayment(supplierState.id, {
+        amount,
+        paidAt: new Date(`${paymentDate}T00:00:00.000Z`).toISOString(),
+        recordedBy: "cashier-01",
+      })
 
-    setSupplyAmount("")
-    setSupplyDate(new Date().toISOString().slice(0, 10))
-    setSupplyReference("")
-    setSupplyNote("")
-    setSupplyError(null)
-    setSupplyModalOpen(false)
+      setSupplierState((current) => {
+        if (!current) {
+          return current
+        }
+
+        return {
+          ...current,
+          debtTotal: current.debtTotal + payment.amount,
+          paymentsTotal: current.paymentsTotal + payment.amount,
+          history: current.history,
+        }
+      })
+
+      setPaymentsPage(1)
+      setPaymentsRefreshKey((current) => current + 1)
+
+      setPaymentAmount("")
+      setPaymentDate(new Date().toISOString().slice(0, 10))
+      setPaymentReference("")
+      setPaymentNote("")
+      setPaymentError(null)
+      setPaymentModalOpen(false)
+    } catch (error) {
+      setPaymentError(
+        error instanceof Error ? error.message : "Versement fournisseur impossible.",
+      )
+    } finally {
+      setIsRecordingPayment(false)
+    }
   }
 
   if (isLoading) {
@@ -298,60 +330,130 @@ export function SupplierDetailPage() {
             <CreditCard size={16} />
             Versement (+)
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setSupplyModalOpen(true)}>
-            <PackagePlus size={16} />
-            Réception (-)
-          </button>
         </div>
       </article>
 
       <article className="client-history-card">
         <div className="client-history-head">
-          <h3>Historique des mouvements</h3>
+          <h3>Historique des versements</h3>
           <span>
-            <CreditCard size={14} /> Solde actuel: {currentBalance >= 0 ? "avance" : "dette"} {formatFcfa(Math.abs(currentBalance))}
+            <CreditCard size={14} /> Solde actuel: {supplierState.debtTotal >= 0 ? "avance" : "dette"} {formatFcfa(Math.abs(supplierState.debtTotal))}
           </span>
         </div>
 
-        <label className="search-input-wrap supplier-inline-search">
-          <Search size={14} />
-          <input
-            type="search"
-            placeholder="Rechercher type, note, référence ou méthode"
-            value={movementQuery}
-            onChange={(event) => setMovementQuery(event.target.value)}
+        <button
+          type="button"
+          className="supplier-filters-toggle"
+          onClick={() => setIsPaymentFiltersOpen((open) => !open)}
+          aria-expanded={isPaymentFiltersOpen}
+          aria-controls="supplier-payments-filters-panel"
+        >
+          <span>
+            <SlidersHorizontal size={14} /> Filtres
+          </span>
+          <ChevronDown
+            size={14}
+            className={isPaymentFiltersOpen ? "supplier-filters-toggle-icon is-open" : "supplier-filters-toggle-icon"}
           />
-        </label>
+        </button>
+
+        <div
+          id="supplier-payments-filters-panel"
+          className={
+            isPaymentFiltersOpen
+              ? "supplier-filters-panel is-open"
+              : "supplier-filters-panel"
+          }
+        >
+          <div className="clients-actions supplier-payment-filters">
+            <button
+              type="button"
+              className={`btn ${paymentPeriodPreset === "this-week" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setPaymentPeriodPreset("this-week")}
+            >
+              Cette semaine
+            </button>
+            <button
+              type="button"
+              className={`btn ${paymentPeriodPreset === "this-month" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setPaymentPeriodPreset("this-month")}
+            >
+              Ce mois
+            </button>
+            <button
+              type="button"
+              className={`btn ${paymentPeriodPreset === "all" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setPaymentPeriodPreset("all")}
+            >
+              Tout
+            </button>
+            <button
+              type="button"
+              className={`btn ${paymentPeriodPreset === "custom" ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setPaymentPeriodPreset("custom")}
+            >
+              Personnalisé
+            </button>
+          </div>
+
+          {paymentPeriodPreset === "custom" ? (
+            <div className="supplier-form-row supplier-payment-range">
+              <label className="field-block supplier-field-block">
+                <span>Du</span>
+                <input
+                  type="date"
+                  value={paymentFromDate}
+                  onChange={(event) => setPaymentFromDate(event.target.value)}
+                />
+              </label>
+              <label className="field-block supplier-field-block">
+                <span>Au</span>
+                <input
+                  type="date"
+                  value={paymentToDate}
+                  onChange={(event) => setPaymentToDate(event.target.value)}
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <label className="search-input-wrap supplier-inline-search">
+            <Search size={14} />
+            <input
+              type="search"
+              placeholder="Rechercher ID versement ou caissier"
+              value={movementQuery}
+              onChange={(event) => setMovementQuery(event.target.value)}
+            />
+          </label>
+        </div>
+
+        {paymentsError ? <p className="form-error-banner">{paymentsError}</p> : null}
 
         <div className="table-wrap">
           <table className="clients-table">
             <thead>
               <tr>
                 <th>Date</th>
-                  <th>Commentaire</th>
-                  <th>Solde</th>
+                <th>Montant</th>
+                <th>Enregistré par</th>
+                <th>Référence</th>
               </tr>
             </thead>
             <tbody>
-              {filteredMovements.map((entry) => (
+              {filteredPayments.map((entry) => (
                 <tr key={entry.id}>
-                  <td>{formatDate(entry.date)}</td>
-                    <td>{entry.description}</td>
-                    <td>
-                      <span
-                        className={entry.runningBalance >= 0 ? "text-success" : "text-danger"}
-                      >
-                        {entry.runningBalance >= 0 ? "+" : "-"}
-                        {formatFcfa(Math.abs(entry.runningBalance))}
-                      </span>
-                    </td>
+                  <td>{formatDate(entry.paidAt)}</td>
+                  <td className="text-success">+{formatFcfa(entry.amount)}</td>
+                  <td>{entry.recordedBy ?? "-"}</td>
+                  <td>{`PAY-${entry.id.slice(0, 8).toUpperCase()}`}</td>
                 </tr>
               ))}
 
-              {filteredMovements.length === 0 ? (
+              {!isLoadingPayments && filteredPayments.length === 0 ? (
                 <tr>
-                    <td colSpan={3} className="clients-empty-row">
-                    Aucun mouvement enregistré.
+                  <td colSpan={4} className="clients-empty-row">
+                    Aucun versement trouvé.
                   </td>
                 </tr>
               ) : null}
@@ -360,38 +462,50 @@ export function SupplierDetailPage() {
         </div>
 
         <div className="clients-mobile-list">
-          {filteredMovements.map((entry) => (
+          {filteredPayments.map((entry) => (
             <article key={entry.id} className="client-mobile-card">
               <div className="client-mobile-head">
                 <div>
-                  <strong>Mouvement</strong>
-                  <small>{formatDate(entry.date)}</small>
+                  <strong>Versement</strong>
+                  <small>{formatDate(entry.paidAt)}</small>
                 </div>
-                <strong
-                  className={entry.runningBalance >= 0 ? "text-success" : "text-danger"}
-                >
-                  {entry.runningBalance >= 0 ? "+" : "-"}
-                  {formatFcfa(Math.abs(entry.runningBalance))}
-                </strong>
+                <strong className="text-success">+{formatFcfa(entry.amount)}</strong>
               </div>
 
               <div className="client-mobile-grid">
                 <p>
-                  <span>Description</span>
-                  <strong>{entry.description}</strong>
+                  <span>Enregistré par</span>
+                  <strong>{entry.recordedBy ?? "-"}</strong>
                 </p>
                 <p>
-                  <span>Solde</span>
-                  <strong
-                    className={entry.runningBalance >= 0 ? "text-success" : "text-danger"}
-                  >
-                    {entry.runningBalance >= 0 ? "+" : "-"}
-                    {formatFcfa(Math.abs(entry.runningBalance))}
-                  </strong>
+                  <span>Référence</span>
+                  <strong>{`PAY-${entry.id.slice(0, 8).toUpperCase()}`}</strong>
                 </p>
               </div>
             </article>
           ))}
+        </div>
+
+        <div className="client-form-actions supplier-payments-pagination">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={paymentsMeta.page <= 1 || isLoadingPayments}
+            onClick={() => setPaymentsPage((page) => Math.max(1, page - 1))}
+          >
+            Page précédente
+          </button>
+          <span className="clients-page-indicator">
+            {paymentsMeta.total} versement(s) - page {paymentsMeta.page}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={paymentsMeta.page * paymentsMeta.limit >= paymentsMeta.total || isLoadingPayments}
+            onClick={() => setPaymentsPage((page) => page + 1)}
+          >
+            Page suivante
+          </button>
         </div>
       </article>
 
@@ -465,11 +579,16 @@ export function SupplierDetailPage() {
               {paymentError ? <p className="supplier-payment-error">{paymentError}</p> : null}
 
               <div className="client-form-actions supplier-payment-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setPaymentModalOpen(false)}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={isRecordingPayment}
+                  onClick={() => setPaymentModalOpen(false)}
+                >
                   Annuler
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Enregistrer
+                <button type="submit" className="btn btn-primary" disabled={isRecordingPayment}>
+                  {isRecordingPayment ? "Enregistrement..." : "Enregistrer"}
                 </button>
               </div>
             </form>
@@ -477,74 +596,6 @@ export function SupplierDetailPage() {
         </div>
       ) : null}
 
-      {supplyModalOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setSupplyModalOpen(false)}>
-          <article
-            className="modal-card"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Enregistrer une réception"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
-              <h3>Réception marchandise (-)</h3>
-            </div>
-
-            <form className="client-form-grid" onSubmit={handleRecordSupply}>
-              <label className="field-block">
-                <span>Montant marchandises *</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={supplyAmount}
-                  onChange={(event) => setSupplyAmount(event.target.value)}
-                  placeholder="Ex: 230000"
-                />
-              </label>
-
-              <label className="field-block">
-                <span>Date *</span>
-                <input
-                  type="date"
-                  value={supplyDate}
-                  onChange={(event) => setSupplyDate(event.target.value)}
-                />
-              </label>
-
-              <label className="field-block field-block-full">
-                <span>Référence</span>
-                <input
-                  type="text"
-                  value={supplyReference}
-                  onChange={(event) => setSupplyReference(event.target.value)}
-                  placeholder="Ex: BL-7702"
-                />
-              </label>
-
-              <label className="field-block field-block-full">
-                <span>Note</span>
-                <textarea
-                  rows={2}
-                  value={supplyNote}
-                  onChange={(event) => setSupplyNote(event.target.value)}
-                  placeholder="Commentaire de réception"
-                />
-              </label>
-
-              {supplyError ? <p className="supplier-payment-error">{supplyError}</p> : null}
-
-              <div className="client-form-actions supplier-payment-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setSupplyModalOpen(false)}>
-                  Annuler
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Enregistrer
-                </button>
-              </div>
-            </form>
-          </article>
-        </div>
-      ) : null}
     </section>
   )
 }

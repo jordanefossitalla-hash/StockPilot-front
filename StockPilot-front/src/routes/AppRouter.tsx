@@ -16,7 +16,6 @@ import { RegisterPage } from "../pages/RegisterPage"
 import { ProductCreatePage } from "../pages/ProductCreatePage"
 import { ProductEditPage } from "../pages/ProductEditPage"
 import { ProductsPage } from "../pages/ProductsPage"
-import { ReportsPage } from "../pages/ReportsPage"
 import { ResetPasswordPage } from "../pages/ResetPasswordPage"
 import { SalesPage } from "../pages/SalesPage"
 import { SettingsPage } from "../pages/SettingsPage"
@@ -69,7 +68,6 @@ export function AppRouter() {
             <Route path="/suppliers/new" element={<SupplierCreatePage />} />
             <Route path="/suppliers/:supplierId" element={<SupplierDetailPage />} />
             <Route path="/suppliers/:supplierId/edit" element={<SupplierEditPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
             <Route path="/settings/legacy" element={<SettingsPage />} />
             <Route path="/settings/profile" element={<SettingsProfilePage />} />

@@ -10,6 +10,9 @@ import {
 import type { Supplier } from "../features/suppliers/supplierTypes"
 import { getSupplierByIdApi, updateSupplier } from "../services/supplierService"
 
+const supplierEditFormSchema = supplierFormSchema.omit({ initialBalance: true })
+type SupplierEditFormValues = Omit<SupplierFormValues, "initialBalance">
+
 export function SupplierEditPage() {
   const navigate = useNavigate()
   const { supplierId } = useParams<{ supplierId: string }>()
@@ -24,8 +27,8 @@ export function SupplierEditPage() {
     handleSubmit,
     reset,
     formState: { errors, isDirty },
-  } = useForm<SupplierFormValues>({
-    resolver: zodResolver(supplierFormSchema),
+  } = useForm<SupplierEditFormValues>({
+    resolver: zodResolver(supplierEditFormSchema),
     mode: "onChange",
     defaultValues: {
       name: "",
@@ -33,7 +36,6 @@ export function SupplierEditPage() {
       email: "",
       address: "",
       status: "active",
-      initialBalance: 0,
     },
   })
 
@@ -65,7 +67,6 @@ export function SupplierEditPage() {
           email: result.email ?? "",
           address: result.address ?? "",
           status: result.status,
-          initialBalance: result.debtTotal - result.paymentsTotal,
         })
       } catch (error) {
         if (!isMounted) {
@@ -128,7 +129,7 @@ export function SupplierEditPage() {
         email: values.email,
         address: values.address,
         status: values.status,
-        initialBalance: values.initialBalance,
+        initialBalance: supplier.debtTotal - supplier.paymentsTotal,
       })
 
       navigate("/suppliers", {
@@ -200,19 +201,6 @@ export function SupplierEditPage() {
                 <option value="inactive">Inactif</option>
               </select>
               {errors.status ? <small>{errors.status.message}</small> : null}
-            </label>
-
-            <label className="field-block supplier-field-block">
-              <span>Solde courant (FCFA)</span>
-              <input
-                type="number"
-                step={1000}
-                {...register("initialBalance", { valueAsNumber: true })}
-              />
-              <small className="field-help">
-                Positif = avance chez le fournisseur, negatif = dette a regler.
-              </small>
-              {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
             </label>
           </div>
 
