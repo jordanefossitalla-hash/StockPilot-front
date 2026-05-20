@@ -102,21 +102,6 @@ function shortenReference(value?: string): string {
   return value.length > 13 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value
 }
 
-function normalizeOrderCell(order: Record<string, unknown>, keys: string[]): string {
-  for (const key of keys) {
-    const value = order[key]
-    if (typeof value === "string" && value.trim()) {
-      return value.trim()
-    }
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return String(value)
-    }
-  }
-
-  return "-"
-}
-
 function buildSupplierReportPdf(report: SupplierReportData) {
   type AutoTableDoc = jsPDF & { lastAutoTable?: { finalY?: number } }
 
