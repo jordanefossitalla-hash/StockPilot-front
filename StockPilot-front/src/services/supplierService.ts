@@ -141,6 +141,19 @@ type ListSuppliersResult = {
   }
 }
 
+type CachedSupplierListEntry = {
+  result: ListSuppliersResult
+  cachedAt: string
+}
+
+type CachedSupplierPaymentsEntry = {
+  result: ListSupplierPaymentsResult
+  cachedAt: string
+}
+
+const SUPPLIER_LIST_CACHE_KEY = "suppliers.list-cache"
+const SUPPLIER_PAYMENTS_CACHE_KEY = "suppliers.payments-cache"
+
 export type SupplierPayment = {
   id: string
   supplierId: string
@@ -204,6 +217,192 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
+}
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function isOnline() {
+  if (!isBrowser()) {
+    return true
+  }
+
+  return window.navigator.onLine
+}
+
+function readJsonStorage<T>(key: string, fallback: T): T {
+  if (!isBrowser()) {
+    return fallback
+  }
+
+  const rawValue = window.localStorage.getItem(key)
+  if (!rawValue) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(rawValue) as T
+  } catch {
+    return fallback
+  }
+}
+
+function writeJsonStorage(key: string, value: unknown) {
+  if (!isBrowser()) {
+    return
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function isRetriableOfflineError(error: unknown) {
+  if (!isBrowser()) {
+    return false
+  }
+
+  if (!isOnline()) {
+    return true
+  }
+
+  if (axios.isAxiosError(error)) {
+    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
+  }
+
+  return false
+}
+
+function buildSupplierQueryKey(params: ListSuppliersParams = {}) {
+  return JSON.stringify({
+    status: params.status ?? null,
+    search: params.search?.trim() || null,
+    page: params.page ?? 1,
+    limit: params.limit ?? 20,
+  })
+}
+
+function readCachedSupplierLists() {
+  return readJsonStorage<Record<string, CachedSupplierListEntry>>(SUPPLIER_LIST_CACHE_KEY, {})
+}
+
+function saveCachedSupplierListResult(params: ListSuppliersParams, result: ListSuppliersResult) {
+  const cache = readCachedSupplierLists()
+  cache[buildSupplierQueryKey(params)] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  }
+  writeJsonStorage(SUPPLIER_LIST_CACHE_KEY, cache)
+}
+
+function getCachedSupplierListResult(params: ListSuppliersParams = {}) {
+  return readCachedSupplierLists()[buildSupplierQueryKey(params)]?.result ?? null
+}
+
+function findSupplierInCachedLists(supplierId: string): Supplier | null {
+  for (const entry of Object.values(readCachedSupplierLists())) {
+    const supplier = entry.result.data.find((item) => item.id === supplierId)
+    if (supplier) {
+      return supplier
+    }
+  }
+
+  return null
+}
+
+function buildSupplierPaymentsQueryKey(
+  supplierId: string,
+  params?: {
+    from?: string
+    to?: string
+    page?: number
+    limit?: number
+  },
+) {
+  return JSON.stringify({
+    supplierId,
+    from: params?.from?.trim() || null,
+    to: params?.to?.trim() || null,
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 20,
+  })
+}
+
+function readCachedSupplierPayments() {
+  return readJsonStorage<Record<string, CachedSupplierPaymentsEntry>>(SUPPLIER_PAYMENTS_CACHE_KEY, {})
+}
+
+function saveCachedSupplierPaymentsResult(
+  supplierId: string,
+  params: {
+    from?: string
+    to?: string
+    page?: number
+    limit?: number
+  } | undefined,
+  result: ListSupplierPaymentsResult,
+) {
+  const cache = readCachedSupplierPayments()
+  cache[buildSupplierPaymentsQueryKey(supplierId, params)] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  }
+  writeJsonStorage(SUPPLIER_PAYMENTS_CACHE_KEY, cache)
+}
+
+function getCachedSupplierPaymentsResult(
+  supplierId: string,
+  params?: {
+    from?: string
+    to?: string
+    page?: number
+    limit?: number
+  },
+) {
+  return readCachedSupplierPayments()[buildSupplierPaymentsQueryKey(supplierId, params)]?.result ?? null
+}
+
+function prependSupplierPaymentToCachedLists(payment: SupplierPayment) {
+  const cache = readCachedSupplierPayments()
+
+  for (const [key, entry] of Object.entries(cache)) {
+    const query = JSON.parse(key) as {
+      supplierId?: string
+      from?: string | null
+      to?: string | null
+      page?: number
+      limit?: number
+    }
+
+    if (query.supplierId !== payment.supplierId) {
+      continue
+    }
+
+    const paidAtTime = Date.parse(payment.paidAt)
+    const fromTime = query.from ? Date.parse(query.from) : null
+    const toTime = query.to ? Date.parse(query.to) : null
+    const withinFrom = fromTime === null || paidAtTime >= fromTime
+    const withinTo = toTime === null || paidAtTime <= toTime
+
+    if (!withinFrom || !withinTo) {
+      continue
+    }
+
+    const limit = Math.max(1, query.limit ?? entry.result.meta.limit ?? 20)
+    const nextData = [payment, ...entry.result.data.filter((item) => item.id !== payment.id)]
+
+    cache[key] = {
+      result: {
+        data: nextData.slice(0, limit),
+        meta: {
+          ...entry.result.meta,
+          total: entry.result.meta.total + 1,
+        },
+      },
+      cachedAt: new Date().toISOString(),
+    }
+  }
+
+  writeJsonStorage(SUPPLIER_PAYMENTS_CACHE_KEY, cache)
 }
 
 function mapStatusToBackend(status: SupplierStatus): BackendSupplierStatus {
@@ -326,11 +525,20 @@ export async function listSuppliers(
       total: response.meta?.total ?? items.length,
     }
 
-    return {
+    const result = {
       data: items,
       meta,
     }
+    saveCachedSupplierListResult(params, result)
+    return result
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = getCachedSupplierListResult(params)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Chargement fournisseurs impossible."), {
       cause: error,
     })
@@ -348,6 +556,13 @@ export async function getSupplierByIdApi(supplierId: string): Promise<Supplier> 
     const supplier = response.data?.data
     return mapBackendSupplier(supplier ?? {})
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = findSupplierInCachedLists(supplierId)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Fournisseur introuvable."), {
       cause: error,
     })
@@ -488,7 +703,7 @@ export async function createSupplierPayment(
       throw new Error("Réponse versement fournisseur invalide du serveur.")
     }
 
-    return {
+    const result = {
       id: payment.id,
       supplierId: payment.supplierId,
       orderId: payment.orderId ?? undefined,
@@ -496,6 +711,8 @@ export async function createSupplierPayment(
       paidAt: payment.paidAt || new Date().toISOString(),
       recordedBy: payment.recordedBy?.trim() || undefined,
     }
+    prependSupplierPaymentToCachedLists(result)
+    return result
   } catch (error) {
     throw new Error(resolveErrorMessage(error, "Versement fournisseur impossible."), {
       cause: error,
@@ -542,7 +759,7 @@ export async function listSupplierPayments(
         recordedBy: item.recordedBy?.trim() || undefined,
       }))
 
-    return {
+    const result = {
       data: items,
       meta: {
         page: response.data?.meta?.page ?? page,
@@ -550,7 +767,16 @@ export async function listSupplierPayments(
         total: response.data?.meta?.total ?? items.length,
       },
     }
+    saveCachedSupplierPaymentsResult(supplierId, params, result)
+    return result
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = getCachedSupplierPaymentsResult(supplierId, params)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Chargement des versements fournisseur impossible."), {
       cause: error,
     })

@@ -69,8 +69,118 @@ export type ListClientsResult = {
   }
 }
 
+type CachedClientListEntry = {
+  result: ListClientsResult
+  cachedAt: string
+}
+
+const CLIENT_LIST_CACHE_KEY = "clients.list-cache"
+
 function formatClientCode(value: number): string {
   return `CLI-${String(value).padStart(4, "0")}`
+}
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function isOnline() {
+  if (!isBrowser()) {
+    return true
+  }
+
+  return window.navigator.onLine
+}
+
+function readJsonStorage<T>(key: string, fallback: T): T {
+  if (!isBrowser()) {
+    return fallback
+  }
+
+  const rawValue = window.localStorage.getItem(key)
+  if (!rawValue) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(rawValue) as T
+  } catch {
+    return fallback
+  }
+}
+
+function writeJsonStorage(key: string, value: unknown) {
+  if (!isBrowser()) {
+    return
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function isRetriableOfflineError(error: unknown) {
+  if (!isBrowser()) {
+    return false
+  }
+
+  if (!isOnline()) {
+    return true
+  }
+
+  if (axios.isAxiosError(error)) {
+    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
+  }
+
+  return false
+}
+
+function buildClientQueryKey(params?: {
+  status?: ClientStatus
+  search?: string
+  page?: number
+  limit?: number
+}) {
+  return JSON.stringify({
+    status: params?.status ?? null,
+    search: params?.search?.trim() || null,
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 15,
+  })
+}
+
+function readCachedClientLists() {
+  return readJsonStorage<Record<string, CachedClientListEntry>>(CLIENT_LIST_CACHE_KEY, {})
+}
+
+function saveCachedClientListResult(
+  params: { status?: ClientStatus; search?: string; page?: number; limit?: number },
+  result: ListClientsResult,
+) {
+  const cache = readCachedClientLists()
+  cache[buildClientQueryKey(params)] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  }
+  writeJsonStorage(CLIENT_LIST_CACHE_KEY, cache)
+}
+
+function getCachedClientListResult(params?: {
+  status?: ClientStatus
+  search?: string
+  page?: number
+  limit?: number
+}) {
+  return readCachedClientLists()[buildClientQueryKey(params)]?.result ?? null
+}
+
+function findClientInCachedLists(clientId: string): Client | null {
+  for (const entry of Object.values(readCachedClientLists())) {
+    const client = entry.result.clients.find((item) => item.id === clientId)
+    if (client) {
+      return client
+    }
+  }
+
+  return null
 }
 
 function extractClientCodeNumber(code?: string): number {
@@ -174,31 +284,68 @@ export async function listClients(params?: {
   const page = params?.page ?? 1
   const limit = params?.limit ?? 15
 
-  const result = await executeWithRefreshRetry(async (token) => {
-    const response = await axios.get<ListClientsResponse>(`${apiBaseUrl}/clients`, {
-      params: {
-        search: search || undefined,
-        status: status ? mapStatusToBackend(status) : undefined,
-        page,
-        limit,
-      },
-      headers: getAuthHeader(token),
-    })
+  try {
+    const result = await executeWithRefreshRetry(async (token) => {
+      const response = await axios.get<ListClientsResponse>(`${apiBaseUrl}/clients`, {
+        params: {
+          search: search || undefined,
+          status: status ? mapStatusToBackend(status) : undefined,
+          page,
+          limit,
+        },
+        headers: getAuthHeader(token),
+      })
 
-    const items = response.data?.data ?? []
-    const meta = response.data?.meta
+      const items = response.data?.data ?? []
+      const meta = response.data?.meta
 
-    return {
-      clients: items.map((item) => mapBackendClient(item)),
-      meta: {
-        page: meta?.page ?? page,
-        limit: meta?.limit ?? limit,
-        total: meta?.total ?? items.length,
-      },
+      return {
+        clients: items.map((item) => mapBackendClient(item)),
+        meta: {
+          page: meta?.page ?? page,
+          limit: meta?.limit ?? limit,
+          total: meta?.total ?? items.length,
+        },
+      }
+    }, false)
+
+    saveCachedClientListResult({ status, search, page, limit }, result)
+    return result
+  } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = getCachedClientListResult({ status, search, page, limit })
+      if (cached) {
+        return cached
+      }
     }
-  }, false)
 
-  return result
+    throw new Error(resolveErrorMessage(error, "Chargement des clients impossible."), {
+      cause: error,
+    })
+  }
+}
+
+export async function getClientByIdApi(clientId: string): Promise<Client> {
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.get<CreateClientResponse>(`${apiBaseUrl}/clients/${clientId}`, {
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    return mapBackendClient(response.data?.data ?? {})
+  } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = findClientInCachedLists(clientId)
+      if (cached) {
+        return cached
+      }
+    }
+
+    throw new Error(resolveErrorMessage(error, "Client introuvable."), {
+      cause: error,
+    })
+  }
 }
 
 export async function createClient(payload: {

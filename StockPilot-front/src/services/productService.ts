@@ -114,6 +114,13 @@ export type ListProductsResult = {
   }
 }
 
+type CachedProductListEntry = {
+  result: ListProductsResult
+  cachedAt: string
+}
+
+const PRODUCT_LIST_CACHE_KEY = "products.list-cache"
+
 function resolveErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const responseData = error.response?.data as
@@ -138,6 +145,100 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
+}
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function isOnline() {
+  if (!isBrowser()) {
+    return true
+  }
+
+  return window.navigator.onLine
+}
+
+function readJsonStorage<T>(key: string, fallback: T): T {
+  if (!isBrowser()) {
+    return fallback
+  }
+
+  const rawValue = window.localStorage.getItem(key)
+  if (!rawValue) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(rawValue) as T
+  } catch {
+    return fallback
+  }
+}
+
+function writeJsonStorage(key: string, value: unknown) {
+  if (!isBrowser()) {
+    return
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function isRetriableOfflineError(error: unknown) {
+  if (!isBrowser()) {
+    return false
+  }
+
+  if (!isOnline()) {
+    return true
+  }
+
+  if (axios.isAxiosError(error)) {
+    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
+  }
+
+  return false
+}
+
+function buildProductQueryKey(params: ListProductsParams = {}) {
+  return JSON.stringify({
+    search: params.search?.trim() || null,
+    categoryId: params.categoryId?.trim() || null,
+    status: params.status ?? null,
+    page: params.page ?? 1,
+    limit: params.limit ?? 20,
+  })
+}
+
+function readCachedProductLists() {
+  return readJsonStorage<Record<string, CachedProductListEntry>>(PRODUCT_LIST_CACHE_KEY, {})
+}
+
+function saveCachedProductListResult(params: ListProductsParams, result: ListProductsResult) {
+  const cache = readCachedProductLists()
+  cache[buildProductQueryKey(params)] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  }
+  writeJsonStorage(PRODUCT_LIST_CACHE_KEY, cache)
+}
+
+function getCachedProductListResult(params: ListProductsParams = {}) {
+  return readCachedProductLists()[buildProductQueryKey(params)]?.result ?? null
+}
+
+function findProductInCachedLists(productId: string): ProductDetail | null {
+  for (const entry of Object.values(readCachedProductLists())) {
+    const product = entry.result.data.find((item) => item.id === productId)
+    if (product) {
+      return {
+        ...product,
+        updatedAt: product.createdAt,
+      }
+    }
+  }
+
+  return null
 }
 
 function mapStatusToBackend(status: "active" | "inactive"): BackendProductStatus {
@@ -253,6 +354,13 @@ export async function getProductByIdApi(productId: string): Promise<ProductDetai
 
     return mapBackendProductDetail(response.data?.data ?? {})
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = findProductInCachedLists(productId)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Produit introuvable."), {
       cause: error,
     })
@@ -356,7 +464,7 @@ export async function listProducts(
 
     const items = (response.data ?? []).map(mapBackendProductListItem)
 
-    return {
+    const result = {
       data: items,
       meta: {
         page: response.meta?.page ?? page,
@@ -364,7 +472,16 @@ export async function listProducts(
         total: response.meta?.total ?? items.length,
       },
     }
+    saveCachedProductListResult(params, result)
+    return result
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = getCachedProductListResult(params)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Chargement produits impossible."), {
       cause: error,
     })

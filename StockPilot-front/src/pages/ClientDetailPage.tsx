@@ -1,14 +1,79 @@
 import { ArrowLeft, CreditCard, FilePenLine } from "lucide-react"
-import { Link, Navigate, useParams } from "react-router-dom"
-import { getClientById } from "../features/clients/clientData"
+import { useEffect, useState } from "react"
+import { Link, useParams } from "react-router-dom"
+import type { Client } from "../features/clients/clientTypes"
 import { formatDate, formatFcfa } from "../features/clients/clientFormatters"
+import { getClientByIdApi } from "../services/clientService"
 
 export function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
-  const client = clientId ? getClientById(clientId) : undefined
+  const [client, setClient] = useState<Client | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  if (!client) {
-    return <Navigate to="/clients" replace />
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadClient() {
+      if (!clientId) {
+        setLoadError("Client introuvable.")
+        setClient(null)
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const result = await getClientByIdApi(clientId)
+
+        if (!isMounted) {
+          return
+        }
+
+        setClient(result)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setLoadError(error instanceof Error ? error.message : "Client introuvable.")
+        setClient(null)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadClient()
+
+    return () => {
+      isMounted = false
+    }
+  }, [clientId])
+
+  if (isLoading) {
+    return (
+      <section className="page clients-page">
+        <p className="clients-empty-row">Chargement du client...</p>
+      </section>
+    )
+  }
+
+  if (loadError || !client) {
+    return (
+      <section className="page clients-page">
+        <p className="form-error-banner">{loadError ?? "Client introuvable."}</p>
+        <div className="clients-actions">
+          <Link className="btn btn-ghost" to="/clients">
+            <ArrowLeft size={16} />
+            Retour à la liste
+          </Link>
+        </div>
+      </section>
+    )
   }
 
   return (

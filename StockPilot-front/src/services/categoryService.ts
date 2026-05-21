@@ -61,6 +61,13 @@ export type ListCategoriesResult = {
   }
 }
 
+type CachedCategoryListEntry = {
+  result: ListCategoriesResult
+  cachedAt: string
+}
+
+const CATEGORY_LIST_CACHE_KEY = "categories.list-cache"
+
 function resolveErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const responseData = error.response?.data as
@@ -85,6 +92,85 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
+}
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function isOnline() {
+  if (!isBrowser()) {
+    return true
+  }
+
+  return window.navigator.onLine
+}
+
+function readJsonStorage<T>(key: string, fallback: T): T {
+  if (!isBrowser()) {
+    return fallback
+  }
+
+  const rawValue = window.localStorage.getItem(key)
+  if (!rawValue) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(rawValue) as T
+  } catch {
+    return fallback
+  }
+}
+
+function writeJsonStorage(key: string, value: unknown) {
+  if (!isBrowser()) {
+    return
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function isRetriableOfflineError(error: unknown) {
+  if (!isBrowser()) {
+    return false
+  }
+
+  if (!isOnline()) {
+    return true
+  }
+
+  if (axios.isAxiosError(error)) {
+    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
+  }
+
+  return false
+}
+
+function buildCategoryQueryKey(params: ListCategoriesParams = {}) {
+  return JSON.stringify({
+    status: params.status ?? null,
+    search: params.search?.trim() || null,
+    page: params.page ?? 1,
+    limit: params.limit ?? 20,
+  })
+}
+
+function readCachedCategoryLists() {
+  return readJsonStorage<Record<string, CachedCategoryListEntry>>(CATEGORY_LIST_CACHE_KEY, {})
+}
+
+function saveCachedCategoryListResult(params: ListCategoriesParams, result: ListCategoriesResult) {
+  const cache = readCachedCategoryLists()
+  cache[buildCategoryQueryKey(params)] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  }
+  writeJsonStorage(CATEGORY_LIST_CACHE_KEY, cache)
+}
+
+function getCachedCategoryListResult(params: ListCategoriesParams = {}) {
+  return readCachedCategoryLists()[buildCategoryQueryKey(params)]?.result ?? null
 }
 
 function mapStatusToBackend(status: CategoryStatus): BackendCategoryStatus {
@@ -170,11 +256,20 @@ export async function listCategories(
       total: response.meta?.total ?? items.length,
     }
 
-    return {
+    const result = {
       data: items,
       meta,
     }
+    saveCachedCategoryListResult(params, result)
+    return result
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = getCachedCategoryListResult(params)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Chargement catégories impossible."), {
       cause: error,
     })

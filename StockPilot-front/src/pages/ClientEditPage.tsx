@@ -1,14 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeft, Save } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
-import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   clientFormSchema,
   type ClientFormValues,
 } from "../features/clients/clientSchemas"
 import type { Client } from "../features/clients/clientTypes"
-import { updateClient } from "../services/clientService"
+import { getClientByIdApi, updateClient } from "../services/clientService"
 
 type EditLocationState = {
   client?: Client
@@ -18,14 +18,17 @@ export function ClientEditPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { clientId } = useParams<{ clientId: string }>()
+  const [client, setClient] = useState<Client | null>(
+    (location.state as EditLocationState | null)?.client ?? null,
+  )
+  const [isLoading, setIsLoading] = useState(!((location.state as EditLocationState | null)?.client))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-
-  const client = (location.state as EditLocationState | null)?.client
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -40,8 +43,97 @@ export function ClientEditPage() {
     },
   })
 
-  if (!clientId || !client || client.id !== clientId) {
-    return <Navigate to="/clients" replace />
+  useEffect(() => {
+    if (!client) {
+      return
+    }
+
+    reset({
+      code: client.code ?? "",
+      name: client.name,
+      phone: client.phone,
+      email: client.email ?? "",
+      address: client.address ?? "",
+      status: client.status,
+      initialBalance: client.debtTotal,
+    })
+  }, [client, reset])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadClient() {
+      if (!clientId) {
+        setClient(null)
+        setIsLoading(false)
+        return
+      }
+
+      if (client && client.id === clientId) {
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setSubmitError(null)
+
+      try {
+        const result = await getClientByIdApi(clientId)
+
+        if (!isMounted) {
+          return
+        }
+
+        setClient(result)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setSubmitError(
+          error instanceof Error
+            ? error.message
+            : "Chargement du client impossible.",
+        )
+        setClient(null)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadClient()
+
+    return () => {
+      isMounted = false
+    }
+  }, [client, clientId])
+
+  if (!clientId) {
+    return null
+  }
+
+  if (isLoading) {
+    return (
+      <section className="page clients-page">
+        <p className="clients-empty-row">Chargement du client...</p>
+      </section>
+    )
+  }
+
+  if (!client || client.id !== clientId) {
+    return (
+      <section className="page clients-page">
+        <p className="form-error-banner">{submitError ?? "Client introuvable."}</p>
+        <div className="clients-actions">
+          <Link to="/clients" className="btn btn-ghost">
+            <ArrowLeft size={16} />
+            Retour à la liste
+          </Link>
+        </div>
+      </section>
+    )
   }
 
   const onSubmit = handleSubmit(async (values) => {
