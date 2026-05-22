@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { AppRouter } from "./routes/AppRouter"
-import { initOrderOfflineSync } from "./services/orderService"
+import {
+  getOrderSyncState,
+  initOrderOfflineSync,
+  ORDER_SYNC_EVENT,
+  syncQueuedOrderMutations,
+} from "./services/orderService"
 import { useAuthStore } from "./store/authStore"
 
 type BeforeInstallPromptEvent = Event & {
@@ -21,6 +26,7 @@ function App() {
   const [isOfflineReady, setIsOfflineReady] = useState(false)
   const [isUpdateReady, setIsUpdateReady] = useState(false)
   const [isInstallAvailable, setIsInstallAvailable] = useState(false)
+  const [orderSyncState, setOrderSyncState] = useState(() => getOrderSyncState())
 
   useEffect(() => {
     if (initializedRef.current) {
@@ -41,6 +47,16 @@ function App() {
     const handleOffline = () => setIsOffline(true)
     const handleOfflineReady = () => setIsOfflineReady(true)
     const handleUpdateReady = () => setIsUpdateReady(true)
+    const handleOrderSyncState = (event: Event) => {
+      const nextState = (event as CustomEvent<ReturnType<typeof getOrderSyncState>>).detail
+
+      if (nextState) {
+        setOrderSyncState(nextState)
+        return
+      }
+
+      setOrderSyncState(getOrderSyncState())
+    }
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
       installPromptRef.current = event as BeforeInstallPromptEvent
@@ -55,6 +71,7 @@ function App() {
     window.addEventListener("offline", handleOffline)
     window.addEventListener("stockpilot:pwa-offline-ready", handleOfflineReady)
     window.addEventListener("stockpilot:pwa-update-ready", handleUpdateReady)
+    window.addEventListener(ORDER_SYNC_EVENT, handleOrderSyncState as EventListener)
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
     window.addEventListener("appinstalled", handleAppInstalled)
 
@@ -63,6 +80,7 @@ function App() {
       window.removeEventListener("offline", handleOffline)
       window.removeEventListener("stockpilot:pwa-offline-ready", handleOfflineReady)
       window.removeEventListener("stockpilot:pwa-update-ready", handleUpdateReady)
+      window.removeEventListener(ORDER_SYNC_EVENT, handleOrderSyncState as EventListener)
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
       window.removeEventListener("appinstalled", handleAppInstalled)
     }
@@ -89,9 +107,13 @@ function App() {
     setIsInstallAvailable(false)
   }
 
+  const hasPendingOfflineOrders = orderSyncState.pendingCount > 0
+  const shouldShowOrderSyncBanner =
+    hasPendingOfflineOrders || orderSyncState.isSyncing || Boolean(orderSyncState.lastError)
+
   return (
     <>
-      {isOffline || isOfflineReady || isUpdateReady || isInstallAvailable ? (
+      {isOffline || isOfflineReady || isUpdateReady || isInstallAvailable || shouldShowOrderSyncBanner ? (
         <div className="app-status-stack" aria-live="polite" aria-atomic="true">
           {isInstallAvailable ? (
             <div className="app-status-banner is-brand">
@@ -114,8 +136,40 @@ function App() {
             <div className="app-status-banner is-warning">
               <div>
                 <strong>Mode hors ligne</strong>
-                <p>Les écrans déjà visités restent accessibles. Les données temps réel peuvent être limitées.</p>
+                <p>
+                  Les écrans déjà visités restent accessibles. Les données temps réel peuvent être limitées.
+                </p>
               </div>
+            </div>
+          ) : null}
+
+          {shouldShowOrderSyncBanner ? (
+            <div className={`app-status-banner${orderSyncState.lastError ? " is-warning" : " is-success"}`}>
+              <div>
+                <strong>
+                  {orderSyncState.isSyncing
+                    ? "Synchronisation des commandes en cours"
+                    : orderSyncState.lastError
+                      ? "Synchronisation des commandes interrompue"
+                      : "Commandes en attente de synchronisation"}
+                </strong>
+                <p>
+                  {orderSyncState.lastError
+                    ? orderSyncState.lastError
+                    : hasPendingOfflineOrders
+                      ? `${orderSyncState.pendingCount} commande${orderSyncState.pendingCount > 1 ? "s" : ""} sera${orderSyncState.pendingCount > 1 ? "ont" : ""} resynchronisée${orderSyncState.pendingCount > 1 ? "s" : ""} dès que la connexion est stable.`
+                      : "Les commandes hors ligne ont été resynchronisées."}
+                </p>
+              </div>
+              {orderSyncState.isOnline && hasPendingOfflineOrders && !orderSyncState.isSyncing ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => void syncQueuedOrderMutations()}
+                >
+                  Relancer la sync
+                </button>
+              ) : null}
             </div>
           ) : null}
 

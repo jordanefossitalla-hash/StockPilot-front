@@ -24,16 +24,13 @@ export function StockHistoryPage() {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedQuery(query)
+      setPage(1)
     }, 300)
 
     return () => {
       window.clearTimeout(timeoutId)
     }
   }, [query])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedQuery, typeFilter])
 
   useEffect(() => {
     let isActive = true
@@ -151,6 +148,7 @@ export function StockHistoryPage() {
             value={typeFilter}
             onChange={(event) => {
               setTypeFilter(event.target.value as "all" | StockHistoryApiType)
+              setPage(1)
             }}
           >
             <option value="all">Tous</option>

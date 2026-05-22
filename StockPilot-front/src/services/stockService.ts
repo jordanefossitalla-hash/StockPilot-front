@@ -78,6 +78,11 @@ export type StockHistoryListResult = {
   }
 }
 
+type CachedStockHistoryEntry = {
+  result: StockHistoryListResult
+  cachedAt: string
+}
+
 function resolveErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const responseData = error.response?.data as
@@ -102,6 +107,139 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
+}
+
+const STOCK_HISTORY_CACHE_KEY = "stock.history-cache"
+const STOCK_STATUS_CACHE_KEY = "stock.status-cache"
+
+function isBrowser() {
+  return typeof window !== "undefined"
+}
+
+function isOnline() {
+  if (!isBrowser()) {
+    return true
+  }
+
+  return window.navigator.onLine
+}
+
+function readJsonStorage<T>(key: string, fallback: T): T {
+  if (!isBrowser()) {
+    return fallback
+  }
+
+  const rawValue = window.localStorage.getItem(key)
+  if (!rawValue) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(rawValue) as T
+  } catch {
+    return fallback
+  }
+}
+
+function writeJsonStorage(key: string, value: unknown) {
+  if (!isBrowser()) {
+    return
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function isRetriableOfflineError(error: unknown) {
+  if (!isBrowser()) {
+    return false
+  }
+
+  if (!isOnline()) {
+    return true
+  }
+
+  if (axios.isAxiosError(error)) {
+    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
+  }
+
+  return false
+}
+
+function buildStockHistoryQueryKey(params?: {
+  page?: number
+  limit?: number
+  type?: StockHistoryApiType
+  search?: string
+}) {
+  return JSON.stringify({
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 20,
+    type: params?.type ?? null,
+    search: params?.search?.trim() || null,
+  })
+}
+
+function buildStockStatusQueryKey(params?: {
+  page?: number
+  limit?: number
+}) {
+  return JSON.stringify({
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 20,
+  })
+}
+
+function readCachedStockHistoryLists() {
+  return readJsonStorage<Record<string, CachedStockHistoryEntry>>(STOCK_HISTORY_CACHE_KEY, {})
+}
+
+function saveCachedStockHistoryResult(
+  params: { page?: number; limit?: number; type?: StockHistoryApiType; search?: string } | undefined,
+  result: StockHistoryListResult,
+) {
+  const cache = readCachedStockHistoryLists()
+  cache[buildStockHistoryQueryKey(params)] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  }
+  writeJsonStorage(STOCK_HISTORY_CACHE_KEY, cache)
+}
+
+function getCachedStockHistoryResult(params?: {
+  page?: number
+  limit?: number
+  type?: StockHistoryApiType
+  search?: string
+}) {
+  return readCachedStockHistoryLists()[buildStockHistoryQueryKey(params)]?.result ?? null
+}
+
+type CachedStockStatusEntry = {
+  result: StockStatusListResult
+  cachedAt: string
+}
+
+function readCachedStockStatusLists() {
+  return readJsonStorage<Record<string, CachedStockStatusEntry>>(STOCK_STATUS_CACHE_KEY, {})
+}
+
+function saveCachedStockStatusResult(
+  params: { page?: number; limit?: number } | undefined,
+  result: StockStatusListResult,
+) {
+  const cache = readCachedStockStatusLists()
+  cache[buildStockStatusQueryKey(params)] = {
+    result,
+    cachedAt: new Date().toISOString(),
+  }
+  writeJsonStorage(STOCK_STATUS_CACHE_KEY, cache)
+}
+
+function getCachedStockStatusResult(params?: {
+  page?: number
+  limit?: number
+}) {
+  return readCachedStockStatusLists()[buildStockStatusQueryKey(params)]?.result ?? null
 }
 
 function getAuthHeader(token?: string) {
@@ -260,7 +398,7 @@ export async function listStockHistory(params?: {
 
     const items = (response.data?.data ?? []).map(mapHistoryItem)
 
-    return {
+    const result = {
       data: items,
       meta: {
         page: response.data?.meta?.page ?? page,
@@ -268,7 +406,16 @@ export async function listStockHistory(params?: {
         total: response.data?.meta?.total ?? items.length,
       },
     }
+    saveCachedStockHistoryResult(params, result)
+    return result
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = getCachedStockHistoryResult(params)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Chargement de l'historique stock impossible."), {
       cause: error,
     })
@@ -350,7 +497,7 @@ export async function listStockStatus(params?: {
 
     const items = (response.data?.data ?? []).map(mapStockStatusItem)
 
-    return {
+    const result = {
       data: items,
       meta: {
         page: response.data?.meta?.page ?? page,
@@ -358,7 +505,16 @@ export async function listStockStatus(params?: {
         total: response.data?.meta?.total ?? items.length,
       },
     }
+    saveCachedStockStatusResult(params, result)
+    return result
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = getCachedStockStatusResult(params)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Chargement de l'état du stock impossible."), {
       cause: error,
     })

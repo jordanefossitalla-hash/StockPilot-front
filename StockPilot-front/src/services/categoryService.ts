@@ -173,6 +173,17 @@ function getCachedCategoryListResult(params: ListCategoriesParams = {}) {
   return readCachedCategoryLists()[buildCategoryQueryKey(params)]?.result ?? null
 }
 
+function findCategoryInCachedLists(categoryId: string): Category | null {
+  for (const entry of Object.values(readCachedCategoryLists())) {
+    const category = entry.result.data.find((item) => item.id === categoryId)
+    if (category) {
+      return category
+    }
+  }
+
+  return null
+}
+
 function mapStatusToBackend(status: CategoryStatus): BackendCategoryStatus {
   return status === "inactive" ? "INACTIVE" : "ACTIVE"
 }
@@ -286,6 +297,13 @@ export async function getCategoryByIdApi(categoryId: string): Promise<Category> 
 
     return mapBackendCategory(response.data?.data ?? {})
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      const cached = findCategoryInCachedLists(categoryId)
+      if (cached) {
+        return cached
+      }
+    }
+
     throw new Error(resolveErrorMessage(error, "Catégorie introuvable."), {
       cause: error,
     })

@@ -25,6 +25,30 @@ function getStartOfWeek(date: Date): Date {
   return copy
 }
 
+function getPaymentRangeForPreset(preset: Exclude<PaymentPeriodPreset, "custom">) {
+  const today = new Date()
+
+  if (preset === "this-week") {
+    return {
+      from: toDateInput(getStartOfWeek(today)),
+      to: toDateInput(today),
+    }
+  }
+
+  if (preset === "this-month") {
+    const startOfMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+    return {
+      from: toDateInput(startOfMonth),
+      to: toDateInput(today),
+    }
+  }
+
+  return {
+    from: "",
+    to: "",
+  }
+}
+
 export function SupplierDetailPage() {
   const { supplierId } = useParams<{ supplierId: string }>()
   const location = useLocation()
@@ -49,8 +73,8 @@ export function SupplierDetailPage() {
   const [paymentsMeta, setPaymentsMeta] = useState({ page: 1, limit: 20, total: 0 })
   const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0)
   const [paymentPeriodPreset, setPaymentPeriodPreset] = useState<PaymentPeriodPreset>("this-month")
-  const [paymentFromDate, setPaymentFromDate] = useState("")
-  const [paymentToDate, setPaymentToDate] = useState("")
+  const [paymentFromDate, setPaymentFromDate] = useState(() => getPaymentRangeForPreset("this-month").from)
+  const [paymentToDate, setPaymentToDate] = useState(() => getPaymentRangeForPreset("this-month").to)
   const [isPaymentFiltersOpen, setIsPaymentFiltersOpen] = useState(false)
 
   const notice =
@@ -99,31 +123,29 @@ export function SupplierDetailPage() {
     }
   }, [supplierId])
 
-  useEffect(() => {
-    const today = new Date()
+  function handlePaymentPresetChange(preset: PaymentPeriodPreset) {
+    setPaymentPeriodPreset(preset)
 
-    if (paymentPeriodPreset === "this-week") {
-      setPaymentFromDate(toDateInput(getStartOfWeek(today)))
-      setPaymentToDate(toDateInput(today))
-      return
+    if (preset !== "custom") {
+      const range = getPaymentRangeForPreset(preset)
+      setPaymentFromDate(range.from)
+      setPaymentToDate(range.to)
     }
 
-    if (paymentPeriodPreset === "this-month") {
-      const startOfMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
-      setPaymentFromDate(toDateInput(startOfMonth))
-      setPaymentToDate(toDateInput(today))
-      return
-    }
-
-    if (paymentPeriodPreset === "all") {
-      setPaymentFromDate("")
-      setPaymentToDate("")
-    }
-  }, [paymentPeriodPreset])
-
-  useEffect(() => {
     setPaymentsPage(1)
-  }, [paymentFromDate, paymentToDate, paymentPeriodPreset])
+  }
+
+  function handlePaymentFromDateChange(value: string) {
+    setPaymentPeriodPreset("custom")
+    setPaymentFromDate(value)
+    setPaymentsPage(1)
+  }
+
+  function handlePaymentToDateChange(value: string) {
+    setPaymentPeriodPreset("custom")
+    setPaymentToDate(value)
+    setPaymentsPage(1)
+  }
 
   useEffect(() => {
     let isActive = true
@@ -369,28 +391,28 @@ export function SupplierDetailPage() {
             <button
               type="button"
               className={`btn ${paymentPeriodPreset === "this-week" ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setPaymentPeriodPreset("this-week")}
+              onClick={() => handlePaymentPresetChange("this-week")}
             >
               Cette semaine
             </button>
             <button
               type="button"
               className={`btn ${paymentPeriodPreset === "this-month" ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setPaymentPeriodPreset("this-month")}
+              onClick={() => handlePaymentPresetChange("this-month")}
             >
               Ce mois
             </button>
             <button
               type="button"
               className={`btn ${paymentPeriodPreset === "all" ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setPaymentPeriodPreset("all")}
+              onClick={() => handlePaymentPresetChange("all")}
             >
               Tout
             </button>
             <button
               type="button"
               className={`btn ${paymentPeriodPreset === "custom" ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setPaymentPeriodPreset("custom")}
+              onClick={() => handlePaymentPresetChange("custom")}
             >
               Personnalisé
             </button>
@@ -403,7 +425,7 @@ export function SupplierDetailPage() {
                 <input
                   type="date"
                   value={paymentFromDate}
-                  onChange={(event) => setPaymentFromDate(event.target.value)}
+                  onChange={(event) => handlePaymentFromDateChange(event.target.value)}
                 />
               </label>
               <label className="field-block supplier-field-block">
@@ -411,7 +433,7 @@ export function SupplierDetailPage() {
                 <input
                   type="date"
                   value={paymentToDate}
-                  onChange={(event) => setPaymentToDate(event.target.value)}
+                  onChange={(event) => handlePaymentToDateChange(event.target.value)}
                 />
               </label>
             </div>

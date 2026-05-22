@@ -296,10 +296,6 @@ export function OrdersPage() {
     }
   }, [deleteBusyOrderId, isSubmitting, statusBusyOrderId, totalOrders])
 
-  useEffect(() => {
-    setPage(1)
-  }, [activeStatusTab, activePriorityFilter])
-
   const clientNameById = useMemo(() => {
     return new Map(clients.map((client) => [client.id, client.name]))
   }, [clients])
@@ -330,6 +326,21 @@ export function OrdersPage() {
     search.trim().length > 0 ||
     activePriorityFilter !== "all" ||
     activeStatusTab !== "all"
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
+  function handlePriorityFilterChange(value: OrderPriorityFilter) {
+    setActivePriorityFilter(value)
+    setPage(1)
+  }
+
+  function handleStatusTabChange(value: OrderStatusTab) {
+    setActiveStatusTab(value)
+    setPage(1)
+  }
 
   function statusTabCount(tab: OrderStatusTab) {
     if (tab === "all") {
@@ -650,7 +661,7 @@ export function OrdersPage() {
                 type="search"
                 placeholder="Rechercher par client ou note"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => handleSearchChange(event.target.value)}
               />
             </label>
 
@@ -658,7 +669,7 @@ export function OrdersPage() {
               <span>Priorité</span>
               <select
                 value={activePriorityFilter}
-                onChange={(event) => setActivePriorityFilter(event.target.value as OrderPriorityFilter)}
+                onChange={(event) => handlePriorityFilterChange(event.target.value as OrderPriorityFilter)}
               >
                 {priorityFilterOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -687,7 +698,7 @@ export function OrdersPage() {
                 className={`sales-tab-btn${activeStatusTab === tab.value ? " is-active" : ""}`}
                 role="tab"
                 aria-selected={activeStatusTab === tab.value}
-                onClick={() => setActiveStatusTab(tab.value)}
+                onClick={() => handleStatusTabChange(tab.value)}
               >
                 <span>{tab.label}</span>
                 <strong>{statusTabCount(tab.value)}</strong>

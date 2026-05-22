@@ -226,16 +226,13 @@ export function SalesPage() {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearch(searchInput)
+      setSalesPage(1)
     }, 350)
 
     return () => {
       window.clearTimeout(timeoutId)
     }
   }, [searchInput])
-
-  useEffect(() => {
-    setSalesPage(1)
-  }, [debouncedSearch, clientFilterId, fromDateFilter, toDateFilter])
 
   useEffect(() => {
     let isActive = true
@@ -899,7 +896,10 @@ export function SalesPage() {
                   <span>Client</span>
                   <select
                     value={clientFilterId}
-                    onChange={(event) => setClientFilterId(event.target.value)}
+                    onChange={(event) => {
+                      setClientFilterId(event.target.value)
+                      setSalesPage(1)
+                    }}
                     disabled={clients.length === 0}
                   >
                     <option value="">Tous les clients</option>
@@ -916,7 +916,10 @@ export function SalesPage() {
                   <input
                     type="date"
                     value={fromDateFilter}
-                    onChange={(event) => setFromDateFilter(event.target.value)}
+                    onChange={(event) => {
+                      setFromDateFilter(event.target.value)
+                      setSalesPage(1)
+                    }}
                   />
                 </label>
 
@@ -925,7 +928,10 @@ export function SalesPage() {
                   <input
                     type="date"
                     value={toDateFilter}
-                    onChange={(event) => setToDateFilter(event.target.value)}
+                    onChange={(event) => {
+                      setToDateFilter(event.target.value)
+                      setSalesPage(1)
+                    }}
                   />
                 </label>
               </div>

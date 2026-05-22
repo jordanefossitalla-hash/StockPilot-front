@@ -24,6 +24,7 @@ type ProductRow = ProductListItem & {
 export function ProductsPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const locationNotice = (location.state as { notice?: string } | null)?.notice ?? null
   const [products, setProducts] = useState<ProductRow[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -31,7 +32,7 @@ export function ProductsPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(() => locationNotice)
   const [totalItems, setTotalItems] = useState(0)
   const [query, setQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
@@ -135,16 +136,12 @@ export function ProductsPage() {
   }, [categories, categoryFilter, page, query])
 
   useEffect(() => {
-    const state = location.state as { notice?: string } | null
-    const message = state?.notice
-
-    if (!message) {
+    if (!locationNotice) {
       return
     }
 
-    setNotice(message)
     navigate(location.pathname + location.search, { replace: true, state: null })
-  }, [location.pathname, location.search, location.state, navigate])
+  }, [location.pathname, location.search, locationNotice, navigate])
 
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
   const pageSafe = Math.min(page, totalPages)
