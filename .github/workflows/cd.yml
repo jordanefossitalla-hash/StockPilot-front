@@ -43,16 +43,49 @@ jobs:
       REPO_URL: ${{ vars.VPS_REPO_URL || format('https://github.com/{0}.git', github.repository) }}
       ENV_FILE_PATH: ${{ vars.FRONTEND_ENV_PATH || '.env.production' }}
       ENV_FILE_CONTENT: ${{ secrets.FRONTEND_ENV_FILE }}
+      SSH_HOST: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+      SSH_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT || '22' }}
+      SSH_USER: ${{ secrets.VPS_USER || vars.VPS_USER }}
 
     steps:
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -eu
+
+          if [ -z "${SSH_HOST:-}" ]; then
+            echo "Missing VPS_HOST. Add it in GitHub Environments > production/staging > Secrets or Variables."
+            exit 1
+          fi
+
+          if [ -z "${SSH_USER:-}" ]; then
+            echo "Missing VPS_USER. Add it in GitHub Environments > production/staging > Secrets or Variables."
+            exit 1
+          fi
+
+          if [ -z "${APP_DIR:-}" ]; then
+            echo "Missing VPS_APP_DIR. Add it in GitHub Environments > production/staging > Variables."
+            exit 1
+          fi
+
+          if [ -z "${ENV_FILE_CONTENT:-}" ]; then
+            echo "Missing FRONTEND_ENV_FILE. Add it in GitHub Environments > production/staging > Secrets."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.VPS_SSH_KEY }}${{ secrets.VPS_PASSWORD }}" ]; then
+            echo "Missing SSH credential. Add VPS_PASSWORD or VPS_SSH_KEY in GitHub Environments > production/staging > Secrets."
+            exit 1
+          fi
+
       - name: Deploy to VPS over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          port: ${{ env.SSH_PORT }}
           script_stop: true
           envs: APP_DIR,DEPLOY_BRANCH,ENV_FILE_CONTENT,ENV_FILE_PATH,PROJECT_DIR,REPO_URL
           script: |

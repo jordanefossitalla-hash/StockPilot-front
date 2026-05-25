@@ -97,9 +97,9 @@ Creer deux environnements GitHub:
 
 Pour chaque environnement, configurer les secrets suivants:
 
-- `VPS_HOST`
-- `VPS_PORT`
-- `VPS_USER`
+- `VPS_HOST` ou Variable `VPS_HOST`
+- `VPS_PORT` ou Variable `VPS_PORT`
+- `VPS_USER` ou Variable `VPS_USER`
 - `VPS_SSH_KEY` si authentification par cle SSH
 - `VPS_PASSWORD` si authentification par mot de passe
 - `FRONTEND_ENV_FILE`
@@ -109,6 +109,7 @@ Regle:
 - renseigner `VPS_SSH_KEY` ou `VPS_PASSWORD`
 - ne pas laisser les deux vides
 - si les deux sont renseignes, la cle SSH reste l'option recommandee
+- `VPS_HOST`, `VPS_PORT` et `VPS_USER` peuvent etre stockes soit en `Secrets`, soit en `Variables`
 
 Configurer aussi les variables GitHub suivantes par environnement:
 
