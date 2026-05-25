@@ -38,10 +38,12 @@ jobs:
 
       - name: Detect available npm scripts
         id: scripts
-        shell: bash
-        run: |
-          echo "has_lint=$(node -p \"Boolean(require('./package.json').scripts?.lint)\")" >> "$GITHUB_OUTPUT"
-          echo "has_test=$(node -p \"Boolean(require('./package.json').scripts?.test)\")" >> "$GITHUB_OUTPUT"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pkg = require(`${process.env.GITHUB_WORKSPACE}/StockPilot-front/package.json`)
+            core.setOutput('has_lint', String(Boolean(pkg.scripts?.lint)))
+            core.setOutput('has_test', String(Boolean(pkg.scripts?.test)))
 
       - name: Run lint
         if: steps.scripts.outputs.has_lint == 'true'
