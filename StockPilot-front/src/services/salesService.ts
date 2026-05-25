@@ -24,7 +24,62 @@ type CancelSaleResponse = {
   data?: BackendSale
 }
 
+type SalesReportResponse = {
+  data?: BackendSalesReport
+}
+
 type BackendSaleStatus = "PAID" | "PARTIAL" | "CONFIRMED" | "CANCELLED"
+
+type BackendSalesReport = {
+  period?: {
+    from?: string
+    to?: string
+    groupBy?: string
+  }
+  summary?: {
+    salesCount?: number
+    grossRevenue?: number | string
+    totalCollected?: number | string
+    totalOutstanding?: number | string
+    cancelledSalesCount?: number
+    costTotal?: number | string
+    profitTotal?: number | string
+    marginRate?: number | string
+    collectionRate?: number | string
+    profitMode?: string
+  }
+  byStatus?: Array<{
+    status?: BackendSaleStatus
+    count?: number
+    total?: number | string
+  }>
+  evolution?: Array<{
+    period?: string
+    revenue?: number | string
+    collected?: number | string
+    outstanding?: number | string
+    profit?: number | string
+  }>
+  topProducts?: Array<{
+    productId?: string
+    sku?: string
+    name?: string
+    quantitySold?: number
+    revenue?: number | string
+    costTotal?: number | string
+    profit?: number | string
+  }>
+  topClients?: Array<{
+    clientId?: string
+    code?: string
+    name?: string
+    salesCount?: number
+    revenue?: number | string
+    paidAmount?: number | string
+    profit?: number | string
+  }>
+  sales?: BackendSale[]
+}
 
 type ListSalesResponse = {
   data?: BackendSale[]
@@ -128,6 +183,57 @@ export type SaleDetail = {
     recordedBy: string
     createdAt: string
   }>
+}
+
+export type SalesReportData = {
+  period: {
+    from: string
+    to: string
+    groupBy: string
+  }
+  summary: {
+    salesCount: number
+    grossRevenue: number
+    totalCollected: number
+    totalOutstanding: number
+    cancelledSalesCount: number
+    costTotal: number
+    profitTotal: number
+    marginRate: number
+    collectionRate: number
+    profitMode: string
+  }
+  byStatus: Array<{
+    status: SalePaymentStatus
+    count: number
+    total: number
+  }>
+  evolution: Array<{
+    period: string
+    revenue: number
+    collected: number
+    outstanding: number
+    profit: number
+  }>
+  topProducts: Array<{
+    productId: string
+    sku: string
+    name: string
+    quantitySold: number
+    revenue: number
+    costTotal: number
+    profit: number
+  }>
+  topClients: Array<{
+    clientId: string
+    code: string
+    name: string
+    salesCount: number
+    revenue: number
+    paidAmount: number
+    profit: number
+  }>
+  sales: SaleDetail[]
 }
 
 function mapSaleStatus(status?: BackendSaleStatus): SalePaymentStatus {
@@ -438,6 +544,95 @@ export async function cancelSale(saleId: string): Promise<SaleDetail> {
     return mapBackendSaleDetail(response.data?.data ?? {})
   } catch (error) {
     throw new Error(resolveErrorMessage(error, "Annulation de la vente impossible."), {
+      cause: error,
+    })
+  }
+}
+
+function mapBackendSalesReport(report?: BackendSalesReport): SalesReportData {
+  const fallbackIso = new Date().toISOString()
+
+  return {
+    period: {
+      from: report?.period?.from || fallbackIso,
+      to: report?.period?.to || fallbackIso,
+      groupBy: report?.period?.groupBy || "DAY",
+    },
+    summary: {
+      salesCount: Number(report?.summary?.salesCount ?? 0) || 0,
+      grossRevenue: toNumber(report?.summary?.grossRevenue),
+      totalCollected: toNumber(report?.summary?.totalCollected),
+      totalOutstanding: toNumber(report?.summary?.totalOutstanding),
+      cancelledSalesCount: Number(report?.summary?.cancelledSalesCount ?? 0) || 0,
+      costTotal: toNumber(report?.summary?.costTotal),
+      profitTotal: toNumber(report?.summary?.profitTotal),
+      marginRate: toNumber(report?.summary?.marginRate),
+      collectionRate: toNumber(report?.summary?.collectionRate),
+      profitMode: report?.summary?.profitMode?.trim() || "N/A",
+    },
+    byStatus: (report?.byStatus ?? []).map((item) => ({
+      status: mapSaleStatus(item.status),
+      count: Number(item.count ?? 0) || 0,
+      total: toNumber(item.total),
+    })),
+    evolution: (report?.evolution ?? []).map((item) => ({
+      period: item.period || "-",
+      revenue: toNumber(item.revenue),
+      collected: toNumber(item.collected),
+      outstanding: toNumber(item.outstanding),
+      profit: toNumber(item.profit),
+    })),
+    topProducts: (report?.topProducts ?? []).map((item) => ({
+      productId: item.productId?.trim() || "",
+      sku: item.sku?.trim() || "-",
+      name: item.name?.trim() || "Produit",
+      quantitySold: Number(item.quantitySold ?? 0) || 0,
+      revenue: toNumber(item.revenue),
+      costTotal: toNumber(item.costTotal),
+      profit: toNumber(item.profit),
+    })),
+    topClients: (report?.topClients ?? []).map((item) => ({
+      clientId: item.clientId?.trim() || "",
+      code: item.code?.trim() || "-",
+      name: item.name?.trim() || "Client",
+      salesCount: Number(item.salesCount ?? 0) || 0,
+      revenue: toNumber(item.revenue),
+      paidAmount: toNumber(item.paidAmount),
+      profit: toNumber(item.profit),
+    })),
+    sales: (report?.sales ?? []).map((item) => mapBackendSaleDetail(item)),
+  }
+}
+
+export async function getSalesReport(params: {
+  from: string
+  to: string
+}): Promise<SalesReportData> {
+  const from = params.from.trim()
+  const to = params.to.trim()
+
+  if (!from || !to) {
+    throw new Error("Période du rapport invalide.")
+  }
+
+  if (new Date(from).getTime() > new Date(to).getTime()) {
+    throw new Error("La date de début ne peut pas dépasser la date de fin.")
+  }
+
+  try {
+    const response = await executeWithRefreshRetry(async (token) => {
+      return axios.get<SalesReportResponse>(`${apiBaseUrl}/sales/report`, {
+        params: {
+          from,
+          to,
+        },
+        headers: getAuthHeader(token),
+      })
+    }, false)
+
+    return mapBackendSalesReport(response.data?.data)
+  } catch (error) {
+    throw new Error(resolveErrorMessage(error, "Génération du rapport ventes impossible."), {
       cause: error,
     })
   }

@@ -1,4 +1,12 @@
-import { ArrowDownRight, ArrowUpRight, FileDown, LoaderCircle } from "lucide-react"
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  FileDown,
+  LoaderCircle,
+  ShoppingCart,
+  Users,
+  Wallet,
+} from "lucide-react"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { useEffect, useState } from "react"
@@ -25,6 +33,11 @@ import {
   stockDistribution,
 } from "../features/dashboard/dashboardData"
 import { type Supplier } from "../features/suppliers/supplierTypes"
+import {
+  listClientAccountStatus,
+  type ClientAccountStatusItem,
+} from "../services/clientService"
+import { getSalesReport, type SalesReportData } from "../services/salesService"
 import { getSupplierReport, listSuppliers, type SupplierReportData } from "../services/supplierService"
 
 const moneyFormatter = new Intl.NumberFormat("fr-FR", {
@@ -100,6 +113,26 @@ function shortenReference(value?: string): string {
   }
 
   return value.length > 13 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(2)} %`
+}
+
+function formatSaleStatusLabel(status: "paid" | "partial" | "unpaid" | "cancelled"): string {
+  if (status === "paid") {
+    return "Payée"
+  }
+
+  if (status === "partial") {
+    return "Partielle"
+  }
+
+  if (status === "cancelled") {
+    return "Annulée"
+  }
+
+  return "Confirmée"
 }
 
 function buildSupplierReportPdf(report: SupplierReportData) {
@@ -309,6 +342,451 @@ function buildSupplierReportPdf(report: SupplierReportData) {
   doc.save(`rapport-fournisseur-${safeName || "supplier"}.pdf`)
 }
 
+function buildClientAccountsPdf(entries: ClientAccountStatusItem[]) {
+  type AutoTableDoc = jsPDF & { lastAutoTable?: { finalY?: number } }
+
+  const debtEntries = entries
+    .filter((entry) => entry.currentDebt > 0 || entry.accountType === "debt")
+    .sort((a, b) => b.currentDebt - a.currentDebt)
+  const advanceEntries = entries
+    .filter((entry) => entry.currentAdvance > 0 || entry.accountType === "advance")
+    .sort((a, b) => b.currentAdvance - a.currentAdvance)
+
+  const totalDebt = debtEntries.reduce((sum, entry) => sum + entry.currentDebt, 0)
+  const totalAdvance = advanceEntries.reduce((sum, entry) => sum + entry.currentAdvance, 0)
+
+  const doc = new jsPDF("p", "mm", "a4")
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 14
+  const contentWidth = pageWidth - margin * 2
+  const mutedText: [number, number, number] = [100, 116, 139]
+  const titleText: [number, number, number] = [15, 23, 42]
+  const borderColor: [number, number, number] = [226, 232, 240]
+  const softSlate: [number, number, number] = [248, 250, 252]
+
+  function lastY(fallback: number): number {
+    return (doc as AutoTableDoc).lastAutoTable?.finalY ?? fallback
+  }
+
+  function ensureSpace(currentY: number, needed = 40): number {
+    if (currentY + needed <= pageHeight - 20) {
+      return currentY
+    }
+
+    doc.addPage()
+    return 22
+  }
+
+  function drawSectionTitle(title: string, y: number): number {
+    const safeY = ensureSpace(y, 22)
+    doc.setDrawColor(...borderColor)
+    doc.setLineWidth(0.2)
+    doc.line(margin, safeY - 2, pageWidth - margin, safeY - 2)
+    doc.setTextColor(...titleText)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(12)
+    doc.text(title, margin, safeY + 5)
+    return safeY + 10
+  }
+
+  doc.setFillColor(15, 23, 42)
+  doc.rect(0, 0, pageWidth, 24, "F")
+  doc.setFillColor(37, 99, 235)
+  doc.rect(0, 0, 3, 24, "F")
+  doc.setTextColor(255, 255, 255)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(14)
+  doc.text("Rapport comptes clients", margin, 10)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(7.4)
+  doc.text("StockPilot | Dettes et avances clients", margin, 16.5)
+  doc.text(`Édité le ${formatDateLabel(new Date().toISOString())}`, pageWidth - margin, 10, {
+    align: "right",
+  })
+
+  let cursorY = 30
+  cursorY = drawSectionTitle("Synthèse globale", cursorY)
+
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 8.6,
+      cellPadding: 2.8,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    bodyStyles: {
+      fillColor: [255, 255, 255],
+    },
+    alternateRowStyles: { fillColor: softSlate },
+    body: [
+      ["Clients débiteurs", numberFormatter.format(debtEntries.length)],
+      ["Total des dettes", formatPdfMoney(totalDebt)],
+      ["Clients en avance", numberFormatter.format(advanceEntries.length)],
+      ["Total des avances", formatPdfMoney(totalAdvance)],
+    ],
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 95 },
+      1: { halign: "right" },
+    },
+  })
+
+  cursorY = drawSectionTitle("Liste des clients débiteurs", lastY(cursorY) + 10)
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.4,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    headStyles: {
+      fillColor: softSlate,
+      textColor: titleText,
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [250, 252, 255] },
+    head: [["Code", "Client", "Téléphone", "Dette", "Dernier paiement"]],
+    body:
+      debtEntries.length > 0
+        ? debtEntries.map((entry) => [
+            entry.code || "-",
+            entry.name,
+            entry.phone || "-",
+            formatPdfMoney(entry.currentDebt),
+            formatPdfDateLabel(entry.lastPaymentAt),
+          ])
+        : [["-", "Aucun client débiteur", "-", formatPdfMoney(0), "-"]],
+    columnStyles: {
+      3: { halign: "right" },
+      4: { halign: "right" },
+    },
+  })
+
+  cursorY = drawSectionTitle("Liste des clients avec avance", lastY(cursorY) + 10)
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.4,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    headStyles: {
+      fillColor: softSlate,
+      textColor: titleText,
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [250, 252, 255] },
+    head: [["Code", "Client", "Téléphone", "Avance", "Dernière vente"]],
+    body:
+      advanceEntries.length > 0
+        ? advanceEntries.map((entry) => [
+            entry.code || "-",
+            entry.name,
+            entry.phone || "-",
+            formatPdfMoney(entry.currentAdvance),
+            formatPdfDateLabel(entry.lastSaleAt),
+          ])
+        : [["-", "Aucun client avec avance", "-", formatPdfMoney(0), "-"]],
+    columnStyles: {
+      3: { halign: "right" },
+      4: { halign: "right" },
+    },
+  })
+
+  if (entries.length === 0) {
+    let infoY = drawSectionTitle("Observation", lastY(cursorY) + 10)
+    infoY = ensureSpace(infoY, 16)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    doc.setTextColor(...mutedText)
+    doc.text(
+      "Aucun compte client à risque détecté pour les critères sélectionnés.",
+      margin,
+      infoY + 6,
+      { maxWidth: contentWidth },
+    )
+  }
+
+  const pageCount = doc.getNumberOfPages()
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page)
+    doc.setDrawColor(...borderColor)
+    doc.line(margin, pageHeight - 14, pageWidth - margin, pageHeight - 14)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(...mutedText)
+    doc.text("StockPilot", margin, pageHeight - 8)
+    doc.text(`Rapport comptes clients - Page ${page}/${pageCount}`, pageWidth - margin, pageHeight - 8, {
+      align: "right",
+    })
+  }
+
+  doc.save("rapport-comptes-clients.pdf")
+}
+
+function buildSalesReportPdf(report: SalesReportData) {
+  type AutoTableDoc = jsPDF & { lastAutoTable?: { finalY?: number } }
+
+  const doc = new jsPDF("p", "mm", "a4")
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 14
+  const mutedText: [number, number, number] = [100, 116, 139]
+  const titleText: [number, number, number] = [15, 23, 42]
+  const borderColor: [number, number, number] = [226, 232, 240]
+  const softSlate: [number, number, number] = [248, 250, 252]
+  const fromLabel = formatPdfDateLabel(report.period.from)
+  const toLabel = formatPdfDateLabel(report.period.to)
+  const periodSlug = `${report.period.from.slice(0, 10)}_${report.period.to.slice(0, 10)}`
+
+  function lastY(fallback: number): number {
+    return (doc as AutoTableDoc).lastAutoTable?.finalY ?? fallback
+  }
+
+  function ensureSpace(currentY: number, needed = 40): number {
+    if (currentY + needed <= pageHeight - 20) {
+      return currentY
+    }
+
+    doc.addPage()
+    return 22
+  }
+
+  function drawSectionTitle(title: string, y: number): number {
+    const safeY = ensureSpace(y, 22)
+    doc.setDrawColor(...borderColor)
+    doc.setLineWidth(0.2)
+    doc.line(margin, safeY - 2, pageWidth - margin, safeY - 2)
+    doc.setTextColor(...titleText)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(12)
+    doc.text(title, margin, safeY + 5)
+    return safeY + 10
+  }
+
+  doc.setFillColor(15, 23, 42)
+  doc.rect(0, 0, pageWidth, 24, "F")
+  doc.setFillColor(37, 99, 235)
+  doc.rect(0, 0, 3, 24, "F")
+  doc.setTextColor(255, 255, 255)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(14)
+  doc.text("Rapport état des ventes", margin, 10)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(7.4)
+  doc.text(`Période: ${fromLabel} - ${toLabel}`, margin, 16.5)
+  doc.text(`Édité le ${formatDateLabel(new Date().toISOString())}`, pageWidth - margin, 10, {
+    align: "right",
+  })
+
+  let cursorY = drawSectionTitle("Synthèse", 30)
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 8.5,
+      cellPadding: 2.8,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    bodyStyles: {
+      fillColor: [255, 255, 255],
+    },
+    alternateRowStyles: { fillColor: softSlate },
+    body: [
+      ["Nombre de ventes", numberFormatter.format(report.summary.salesCount)],
+      ["Chiffre d'affaires brut", formatPdfMoney(report.summary.grossRevenue)],
+      ["Montant encaissé", formatPdfMoney(report.summary.totalCollected)],
+      ["Reste à encaisser", formatPdfMoney(report.summary.totalOutstanding)],
+      ["Coût total", formatPdfMoney(report.summary.costTotal)],
+      ["Bénéfice total", formatSignedPdfMoney(report.summary.profitTotal)],
+      ["Taux de marge", formatPercent(report.summary.marginRate)],
+      ["Taux d'encaissement", formatPercent(report.summary.collectionRate)],
+      ["Ventes annulées", numberFormatter.format(report.summary.cancelledSalesCount)],
+    ],
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 90 },
+      1: { halign: "right" },
+    },
+  })
+
+  cursorY = drawSectionTitle("Répartition par statut", lastY(cursorY) + 10)
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 8.1,
+      cellPadding: 2.4,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    headStyles: {
+      fillColor: softSlate,
+      textColor: titleText,
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [250, 252, 255] },
+    head: [["Statut", "Nombre", "Total"]],
+    body:
+      report.byStatus.length > 0
+        ? report.byStatus.map((item) => [
+            formatSaleStatusLabel(item.status),
+            numberFormatter.format(item.count),
+            formatPdfMoney(item.total),
+          ])
+        : [["-", "0", formatPdfMoney(0)]],
+    columnStyles: {
+      1: { halign: "right" },
+      2: { halign: "right" },
+    },
+  })
+
+  cursorY = drawSectionTitle("Évolution de la période", lastY(cursorY) + 10)
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 7.8,
+      cellPadding: 2.3,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    headStyles: {
+      fillColor: softSlate,
+      textColor: titleText,
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [250, 252, 255] },
+    head: [["Date", "CA", "Encaissé", "Reste", "Bénéfice"]],
+    body:
+      report.evolution.length > 0
+        ? report.evolution.map((item) => [
+            formatPdfDateLabel(item.period),
+            formatPdfMoney(item.revenue),
+            formatPdfMoney(item.collected),
+            formatPdfMoney(item.outstanding),
+            formatSignedPdfMoney(item.profit),
+          ])
+        : [["-", formatPdfMoney(0), formatPdfMoney(0), formatPdfMoney(0), formatPdfMoney(0)]],
+    columnStyles: {
+      1: { halign: "right" },
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right" },
+    },
+  })
+
+  cursorY = drawSectionTitle("Top produits", lastY(cursorY) + 10)
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 7.7,
+      cellPadding: 2.3,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    headStyles: {
+      fillColor: softSlate,
+      textColor: titleText,
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [250, 252, 255] },
+    head: [["SKU", "Produit", "Qté", "CA", "Coût", "Bénéfice"]],
+    body:
+      report.topProducts.length > 0
+        ? report.topProducts.map((item) => [
+            item.sku,
+            item.name,
+            numberFormatter.format(item.quantitySold),
+            formatPdfMoney(item.revenue),
+            formatPdfMoney(item.costTotal),
+            formatSignedPdfMoney(item.profit),
+          ])
+        : [["-", "Aucun produit", "0", formatPdfMoney(0), formatPdfMoney(0), formatPdfMoney(0)]],
+    columnStyles: {
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right" },
+      5: { halign: "right" },
+    },
+  })
+
+  cursorY = drawSectionTitle("Top clients", lastY(cursorY) + 10)
+  autoTable(doc, {
+    startY: cursorY,
+    margin: { left: margin, right: margin },
+    theme: "plain",
+    styles: {
+      fontSize: 7.7,
+      cellPadding: 2.3,
+      lineColor: borderColor,
+      lineWidth: 0.15,
+      textColor: titleText,
+    },
+    headStyles: {
+      fillColor: softSlate,
+      textColor: titleText,
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [250, 252, 255] },
+    head: [["Code", "Client", "Ventes", "CA", "Payé", "Bénéfice"]],
+    body:
+      report.topClients.length > 0
+        ? report.topClients.map((item) => [
+            item.code,
+            item.name,
+            numberFormatter.format(item.salesCount),
+            formatPdfMoney(item.revenue),
+            formatPdfMoney(item.paidAmount),
+            formatSignedPdfMoney(item.profit),
+          ])
+        : [["-", "Aucun client", "0", formatPdfMoney(0), formatPdfMoney(0), formatPdfMoney(0)]],
+    columnStyles: {
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right" },
+      5: { halign: "right" },
+    },
+  })
+
+  const pageCount = doc.getNumberOfPages()
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page)
+    doc.setDrawColor(...borderColor)
+    doc.line(margin, pageHeight - 14, pageWidth - margin, pageHeight - 14)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(...mutedText)
+    doc.text("StockPilot", margin, pageHeight - 8)
+    doc.text(`Rapport état des ventes - Page ${page}/${pageCount}`, pageWidth - margin, pageHeight - 8, {
+      align: "right",
+    })
+  }
+
+  doc.save(`rapport-etat-ventes-${periodSlug}.pdf`)
+}
+
 function formatMetricValue(label: string, value: number) {
   const normalized = label.toLowerCase()
 
@@ -419,6 +897,14 @@ export function DashboardPage() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
   const [reportSuccess, setReportSuccess] = useState<string | null>(null)
+  const [isGeneratingClientAccountsReport, setIsGeneratingClientAccountsReport] = useState(false)
+  const [clientAccountsReportError, setClientAccountsReportError] = useState<string | null>(null)
+  const [clientAccountsReportSuccess, setClientAccountsReportSuccess] = useState<string | null>(null)
+  const [salesReportFrom, setSalesReportFrom] = useState(formatDateRangeInput(monthStart))
+  const [salesReportTo, setSalesReportTo] = useState(formatDateRangeInput(today))
+  const [isGeneratingSalesReport, setIsGeneratingSalesReport] = useState(false)
+  const [salesReportError, setSalesReportError] = useState<string | null>(null)
+  const [salesReportSuccess, setSalesReportSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -521,6 +1007,84 @@ export function DashboardPage() {
       )
     } finally {
       setIsGeneratingReport(false)
+    }
+  }
+
+  async function handleGenerateClientAccountsReport() {
+    setClientAccountsReportError(null)
+    setClientAccountsReportSuccess(null)
+    setIsGeneratingClientAccountsReport(true)
+
+    try {
+      const allEntries: ClientAccountStatusItem[] = []
+      let page = 1
+      const limit = 100
+      let shouldContinue = true
+
+      while (shouldContinue) {
+        const response = await listClientAccountStatus({
+          includeSettled: false,
+          page,
+          limit,
+        })
+
+        allEntries.push(...response.data)
+
+        const total = response.meta.total
+        const reachedEnd = allEntries.length >= total || response.data.length < response.meta.limit
+        if (reachedEnd || response.data.length === 0) {
+          shouldContinue = false
+          continue
+        }
+
+        page += 1
+      }
+
+      buildClientAccountsPdf(allEntries)
+      setClientAccountsReportSuccess("Rapport comptes clients généré avec succès.")
+    } catch (error) {
+      setClientAccountsReportError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de générer le rapport comptes clients.",
+      )
+    } finally {
+      setIsGeneratingClientAccountsReport(false)
+    }
+  }
+
+  async function handleGenerateSalesReport() {
+    setSalesReportError(null)
+    setSalesReportSuccess(null)
+
+    if (!salesReportFrom || !salesReportTo) {
+      setSalesReportError("Veuillez renseigner une période complète.")
+      return
+    }
+
+    if (new Date(salesReportFrom).getTime() > new Date(salesReportTo).getTime()) {
+      setSalesReportError("La date de début ne peut pas dépasser la date de fin.")
+      return
+    }
+
+    setIsGeneratingSalesReport(true)
+
+    try {
+      const report = await getSalesReport({
+        from: toStartOfDayIso(salesReportFrom),
+        to: toEndOfDayIso(salesReportTo),
+      })
+
+      buildSalesReportPdf(report)
+      setSalesReportSuccess("Rapport état des ventes généré avec succès.")
+    } catch (error) {
+      setSalesReportError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de générer le rapport état des ventes.",
+      )
+    } finally {
+      setIsGeneratingSalesReport(false)
     }
   }
 
@@ -773,83 +1337,192 @@ export function DashboardPage() {
         </article>
       </section>
 
-      <section className="dashboard-report-card" aria-label="Rapport fournisseur PDF">
+      <section className="dashboard-reports" aria-label="Rapports PDF">
         <div className="dashboard-report-label">
           <FileDown size={14} />
-          Rapport fournisseur
+          Centre de rapports
         </div>
 
-        <div className="dashboard-report-row">
-          <div className="report-supplier-group">
-            <select
-              id="reportSupplierId"
-              aria-label="Fournisseur"
-              value={selectedSupplierId}
-              onChange={(event) => setSelectedSupplierId(event.target.value)}
-              disabled={isLoadingSuppliers || suppliers.length === 0}
-              className="report-select"
-            >
-              {suppliers.length === 0 ? (
-                <option value="">
-                  {isLoadingSuppliers ? "Chargement..." : "Aucun fournisseur"}
-                </option>
-              ) : null}
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>
-                  {supplier.name}{supplier.code ? ` · ${supplier.code}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="dashboard-reports-grid">
+          <article className="dashboard-report-card report-card-supplier" aria-label="Rapport fournisseur PDF">
+            <div className="dashboard-report-label">
+              <span className="report-type-icon" aria-hidden="true">
+                <Users size={14} />
+              </span>
+              Rapport fournisseur
+            </div>
 
-          <label className="report-date-field" htmlFor="reportFromDate">
-            <span>Du</span>
-            <input
-              id="reportFromDate"
-              type="date"
-              value={reportFrom}
-              onChange={(event) => setReportFrom(event.target.value)}
-            />
-          </label>
+            <div className="dashboard-report-stack">
+              <div className="report-supplier-group">
+                <select
+                  id="reportSupplierId"
+                  aria-label="Fournisseur"
+                  value={selectedSupplierId}
+                  onChange={(event) => setSelectedSupplierId(event.target.value)}
+                  disabled={isLoadingSuppliers || suppliers.length === 0}
+                  className="report-select"
+                >
+                  {suppliers.length === 0 ? (
+                    <option value="">
+                      {isLoadingSuppliers ? "Chargement..." : "Aucun fournisseur"}
+                    </option>
+                  ) : null}
+                  {suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name}{supplier.code ? ` · ${supplier.code}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <label className="report-date-field" htmlFor="reportToDate">
-            <span>Au</span>
-            <input
-              id="reportToDate"
-              type="date"
-              value={reportTo}
-              onChange={(event) => setReportTo(event.target.value)}
-            />
-          </label>
+              <div className="dashboard-report-dates">
+                <label className="report-date-field" htmlFor="reportFromDate">
+                  <span>Du</span>
+                  <input
+                    id="reportFromDate"
+                    type="date"
+                    value={reportFrom}
+                    onChange={(event) => setReportFrom(event.target.value)}
+                  />
+                </label>
 
-          <button
-            type="button"
-            className="btn report-btn"
-            onClick={handleGenerateSupplierReport}
-            disabled={
-              isGeneratingReport ||
-              isLoadingSuppliers ||
-              !selectedSupplierId ||
-              !reportFrom ||
-              !reportTo
-            }
-          >
-            {isGeneratingReport ? (
-              <LoaderCircle size={14} className="icon-spin" />
-            ) : (
-              <FileDown size={14} />
-            )}
-            {isGeneratingReport ? "Génération..." : "PDF"}
-          </button>
+                <label className="report-date-field" htmlFor="reportToDate">
+                  <span>Au</span>
+                  <input
+                    id="reportToDate"
+                    type="date"
+                    value={reportTo}
+                    onChange={(event) => setReportTo(event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <button
+                type="button"
+                className="btn report-btn report-btn-block"
+                onClick={handleGenerateSupplierReport}
+                disabled={
+                  isGeneratingReport ||
+                  isLoadingSuppliers ||
+                  !selectedSupplierId ||
+                  !reportFrom ||
+                  !reportTo
+                }
+              >
+                {isGeneratingReport ? (
+                  <LoaderCircle size={14} className="icon-spin" />
+                ) : (
+                  <FileDown size={14} />
+                )}
+                {isGeneratingReport ? "Génération..." : "PDF fournisseur"}
+              </button>
+            </div>
+
+            {(supplierOptionsError ?? reportError ?? reportSuccess) ? (
+              <p className={`dashboard-report-message ${
+                reportSuccess ? "is-success" : "is-error"
+              }`}>
+                {supplierOptionsError ?? reportError ?? reportSuccess}
+              </p>
+            ) : null}
+          </article>
+
+          <article className="dashboard-report-card report-card-accounts" aria-label="Rapport comptes clients PDF">
+            <div className="dashboard-report-label">
+              <span className="report-type-icon" aria-hidden="true">
+                <Wallet size={14} />
+              </span>
+              Rapport comptes clients
+            </div>
+
+            <div className="dashboard-report-stack">
+              <p className="dashboard-report-hint">
+                Liste des clients débiteurs et des clients en avance, avec les totaux consolidés.
+              </p>
+
+              <button
+                type="button"
+                className="btn report-btn report-btn-block"
+                onClick={() => void handleGenerateClientAccountsReport()}
+                disabled={isGeneratingClientAccountsReport}
+              >
+                {isGeneratingClientAccountsReport ? (
+                  <LoaderCircle size={14} className="icon-spin" />
+                ) : (
+                  <FileDown size={14} />
+                )}
+                {isGeneratingClientAccountsReport ? "Génération..." : "PDF comptes clients"}
+              </button>
+            </div>
+
+            {(clientAccountsReportError ?? clientAccountsReportSuccess) ? (
+              <p className={`dashboard-report-message ${
+                clientAccountsReportSuccess ? "is-success" : "is-error"
+              }`}>
+                {clientAccountsReportError ?? clientAccountsReportSuccess}
+              </p>
+            ) : null}
+          </article>
+
+          <article className="dashboard-report-card report-card-sales" aria-label="Rapport état des ventes PDF">
+            <div className="dashboard-report-label">
+              <span className="report-type-icon" aria-hidden="true">
+                <ShoppingCart size={14} />
+              </span>
+              Rapport état des ventes
+            </div>
+
+            <div className="dashboard-report-stack">
+              <p className="dashboard-report-hint">
+                Intervalle de date uniquement, avec synthèse, statuts, évolution, tops produits et tops clients.
+              </p>
+
+              <div className="dashboard-report-dates">
+                <label className="report-date-field" htmlFor="salesReportFromDate">
+                  <span>Du</span>
+                  <input
+                    id="salesReportFromDate"
+                    type="date"
+                    value={salesReportFrom}
+                    onChange={(event) => setSalesReportFrom(event.target.value)}
+                  />
+                </label>
+
+                <label className="report-date-field" htmlFor="salesReportToDate">
+                  <span>Au</span>
+                  <input
+                    id="salesReportToDate"
+                    type="date"
+                    value={salesReportTo}
+                    onChange={(event) => setSalesReportTo(event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <button
+                type="button"
+                className="btn report-btn report-btn-block"
+                onClick={() => void handleGenerateSalesReport()}
+                disabled={isGeneratingSalesReport || !salesReportFrom || !salesReportTo}
+              >
+                {isGeneratingSalesReport ? (
+                  <LoaderCircle size={14} className="icon-spin" />
+                ) : (
+                  <FileDown size={14} />
+                )}
+                {isGeneratingSalesReport ? "Génération..." : "PDF ventes"}
+              </button>
+            </div>
+
+            {(salesReportError ?? salesReportSuccess) ? (
+              <p className={`dashboard-report-message ${
+                salesReportSuccess ? "is-success" : "is-error"
+              }`}>
+                {salesReportError ?? salesReportSuccess}
+              </p>
+            ) : null}
+          </article>
         </div>
-
-        {(supplierOptionsError ?? reportError ?? reportSuccess) ? (
-          <p className={`dashboard-report-message ${
-            reportSuccess ? "is-success" : "is-error"
-          }`}>
-            {supplierOptionsError ?? reportError ?? reportSuccess}
-          </p>
-        ) : null}
       </section>
     </div>
   )

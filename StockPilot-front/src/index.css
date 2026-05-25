@@ -1211,7 +1211,22 @@ button {
   font-weight: 600;
 }
 
+.dashboard-reports {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+}
+
+.dashboard-reports-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.72rem;
+  align-items: start;
+}
+
 .dashboard-report-card {
+  --report-accent: var(--color-brand);
+  --report-soft: var(--color-brand-soft);
   background: var(--color-surface-raised);
   border: 1px dashed color-mix(in srgb, var(--color-border) 80%, transparent);
   border-radius: var(--radius-lg);
@@ -1219,6 +1234,31 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  position: relative;
+}
+
+.dashboard-report-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  background: color-mix(in srgb, var(--report-accent) 70%, transparent);
+}
+
+.report-card-supplier {
+  --report-accent: var(--color-brand);
+  --report-soft: color-mix(in srgb, var(--color-brand) 14%, transparent);
+}
+
+.report-card-accounts {
+  --report-accent: var(--color-warning);
+  --report-soft: color-mix(in srgb, var(--color-warning) 14%, transparent);
+}
+
+.report-card-sales {
+  --report-accent: var(--color-success);
+  --report-soft: color-mix(in srgb, var(--color-success) 14%, transparent);
 }
 
 .dashboard-report-label {
@@ -1232,11 +1272,35 @@ button {
   color: var(--color-text-muted);
 }
 
+.report-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: var(--radius-full);
+  color: var(--report-accent);
+  background: var(--report-soft);
+  border: 1px solid color-mix(in srgb, var(--report-accent) 30%, transparent);
+}
+
 .dashboard-report-row {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr auto;
   gap: 0.6rem;
   align-items: end;
+}
+
+.dashboard-report-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dashboard-report-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
 }
 
 .report-supplier-group {
@@ -1311,9 +1375,16 @@ button {
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
+.report-btn-block {
+  width: 100%;
+  justify-content: center;
+  align-self: stretch;
+}
+
 .report-btn:hover:not(:disabled) {
-  background: var(--color-brand-soft);
-  border-color: var(--color-brand);
+  background: var(--report-soft);
+  border-color: color-mix(in srgb, var(--report-accent) 72%, var(--color-border));
+  color: color-mix(in srgb, var(--report-accent) 85%, black 5%);
 }
 
 .report-btn:disabled {
@@ -1334,6 +1405,28 @@ button {
   color: var(--color-success);
 }
 
+.dashboard-report-divider {
+  width: 100%;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-border) 88%, transparent);
+  margin: 0.15rem 0;
+}
+
+.dashboard-report-row-single {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.dashboard-report-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.dashboard-report-hint-wide {
+  max-width: 44ch;
+}
+
 @media (max-width: 1200px) {
   .metrics-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1345,6 +1438,10 @@ button {
   }
 
   .dashboard-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-reports-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1363,12 +1460,25 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-reports-grid {
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-report-row {
     grid-template-columns: 1fr 1fr;
   }
 
   .report-btn {
     grid-column: span 2;
+    justify-self: end;
+  }
+
+  .dashboard-report-row-single {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-report-row-single .report-btn {
+    grid-column: 1;
     justify-self: end;
   }
 
@@ -1399,8 +1509,16 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-report-dates {
+    grid-template-columns: 1fr;
+  }
+
   .report-btn {
     grid-column: 1;
+    justify-self: stretch;
+  }
+
+  .dashboard-report-row-single .report-btn {
     justify-self: stretch;
   }
 
