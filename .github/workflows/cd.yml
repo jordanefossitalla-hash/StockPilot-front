@@ -30,15 +30,136 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'develop')) || github.event_name == 'workflow_dispatch' }}
+  deploy_production:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment:
-      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'main' && 'production' || 'staging') }}
+    environment: production
     env:
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
-      APP_DIR: ${{ vars.VPS_APP_DIR }}
+      APP_DIR: ${{ vars.VPS_APP_DIR || secrets.VPS_APP_DIR }}
+      PROJECT_DIR: ${{ vars.FRONTEND_PROJECT_DIR || 'StockPilot-front' }}
+      REPO_URL: ${{ vars.VPS_REPO_URL || format('https://github.com/{0}.git', github.repository) }}
+      ENV_FILE_PATH: ${{ vars.FRONTEND_ENV_PATH || '.env.production' }}
+      ENV_FILE_CONTENT: ${{ secrets.FRONTEND_ENV_FILE }}
+      SSH_HOST: ${{ secrets.VPS_HOST || vars.VPS_HOST }}
+      SSH_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT || '22' }}
+      SSH_USER: ${{ secrets.VPS_USER || vars.VPS_USER }}
+
+    steps:
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -eu
+
+          if [ -z "${SSH_HOST:-}" ]; then
+            echo "Missing VPS_HOST. Add it in GitHub Environments > production/staging > Secrets or Variables."
+            exit 1
+          fi
+
+          if [ -z "${SSH_USER:-}" ]; then
+            echo "Missing VPS_USER. Add it in GitHub Environments > production/staging > Secrets or Variables."
+            exit 1
+          fi
+
+          if [ -z "${APP_DIR:-}" ]; then
+            echo "Missing VPS_APP_DIR. Add it in GitHub Environments > production/staging > Variables."
+            exit 1
+          fi
+
+          if [ -z "${ENV_FILE_CONTENT:-}" ]; then
+            echo "Missing FRONTEND_ENV_FILE. Add it in GitHub Environments > production/staging > Secrets."
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.VPS_SSH_KEY }}${{ secrets.VPS_PASSWORD }}" ]; then
+            echo "Missing SSH credential. Add VPS_PASSWORD or VPS_SSH_KEY in GitHub Environments > production/staging > Secrets."
+            exit 1
+          fi
+
+      - name: Deploy to VPS over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ env.SSH_PORT }}
+          script_stop: true
+          envs: APP_DIR,DEPLOY_BRANCH,ENV_FILE_CONTENT,ENV_FILE_PATH,PROJECT_DIR,REPO_URL
+          script: |
+            set -eu
+
+            if [ -z "${APP_DIR:-}" ]; then
+              echo "VPS_APP_DIR is missing. Configure it in GitHub environment variables."
+              exit 1
+            fi
+
+            if [ -z "${REPO_URL:-}" ]; then
+              echo "VPS_REPO_URL is missing. Configure it in GitHub environment variables."
+              exit 1
+            fi
+
+            diagnostics() {
+              echo "Deployment diagnostics"
+              echo "Current directory: $(pwd)"
+              df -h || true
+              docker system df || true
+              if [ -f docker-compose.prod.yml ]; then
+                docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE_PATH}" ps || true
+                docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE_PATH}" logs --tail=200 || true
+              fi
+            }
+
+            trap diagnostics ERR
+
+            install -d "$(dirname "$APP_DIR")"
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone --branch "$DEPLOY_BRANCH" "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git fetch --all --prune
+            git checkout "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
+
+            DEPLOY_DIR="$APP_DIR"
+            if [ -n "${PROJECT_DIR:-}" ] && [ -d "$APP_DIR/$PROJECT_DIR" ]; then
+              DEPLOY_DIR="$APP_DIR/$PROJECT_DIR"
+            fi
+
+            cd "$DEPLOY_DIR"
+
+            if [ -n "${ENV_FILE_CONTENT:-}" ]; then
+              printf '%s\n' "$ENV_FILE_CONTENT" > "$ENV_FILE_PATH"
+            fi
+
+            if [ ! -f "$ENV_FILE_PATH" ]; then
+              echo "Missing ${ENV_FILE_PATH}. Provide FRONTEND_ENV_FILE or create the file on the VPS."
+              exit 1
+            fi
+
+            if [ ! -f docker-compose.prod.yml ]; then
+              echo "docker-compose.prod.yml not found in ${DEPLOY_DIR}. Check FRONTEND_PROJECT_DIR."
+              exit 1
+            fi
+
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" pull || true
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" build --pull
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" up -d --remove-orphans
+            docker image prune -af --filter "until=168h" || true
+            docker builder prune -af || true
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" ps
+
+  deploy_staging:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'develop') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
+      APP_DIR: ${{ vars.VPS_APP_DIR || secrets.VPS_APP_DIR }}
       PROJECT_DIR: ${{ vars.FRONTEND_PROJECT_DIR || 'StockPilot-front' }}
       REPO_URL: ${{ vars.VPS_REPO_URL || format('https://github.com/{0}.git', github.repository) }}
       ENV_FILE_PATH: ${{ vars.FRONTEND_ENV_PATH || '.env.production' }}
