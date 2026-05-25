@@ -40,7 +40,7 @@ jobs:
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
       APP_DIR: ${{ vars.VPS_APP_DIR }}
       PROJECT_DIR: ${{ vars.FRONTEND_PROJECT_DIR || 'StockPilot-front' }}
-      REPO_URL: ${{ vars.VPS_REPO_URL }}
+      REPO_URL: ${{ vars.VPS_REPO_URL || format('https://github.com/{0}.git', github.repository) }}
       ENV_FILE_PATH: ${{ vars.FRONTEND_ENV_PATH || '.env.production' }}
       ENV_FILE_CONTENT: ${{ secrets.FRONTEND_ENV_FILE }}
 

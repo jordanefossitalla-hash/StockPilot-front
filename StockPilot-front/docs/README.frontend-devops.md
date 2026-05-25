@@ -113,16 +113,20 @@ Regle:
 Configurer aussi les variables GitHub suivantes par environnement:
 
 - `VPS_APP_DIR`
-- `VPS_REPO_URL`
+- `VPS_REPO_URL` optionnel si le depot est public
 - `FRONTEND_PROJECT_DIR` optionnel, defaut `StockPilot-front`
 - `FRONTEND_ENV_PATH` optionnel, defaut `.env.production`
 
 Exemples:
 
 - `VPS_APP_DIR=/opt/stockpilot/front`
-- `VPS_REPO_URL=git@github.com:your-org/stockpilot-front.git`
+- `VPS_REPO_URL=https://github.com/your-org/stockpilot-front.git`
 - `FRONTEND_PROJECT_DIR=StockPilot-front`
 - `FRONTEND_ENV_PATH=.env.production`
+
+Si `VPS_REPO_URL` n'est pas defini et que le depot est public, le workflow utilisera automatiquement:
+
+- `https://github.com/<owner>/<repo>.git`
 
 ## Preparation du VPS
 
