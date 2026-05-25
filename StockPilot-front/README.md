@@ -64,6 +64,12 @@ VITE_API_BASE_URL=https://api.example.com
 
 Sans configuration API, certaines fonctionnalites utilisent des comportements mock pour faciliter le developpement local.
 
+## CI/CD et deploiement
+
+Une chaine CI/CD GitHub Actions est prevue pour le frontend avec deploiement VPS via Docker + Nginx.
+
+Consulter la documentation complete dans `docs/README.frontend-devops.md`.
+
 ## PWA
 
 Le frontend est maintenant configure comme Progressive Web App (PWA):

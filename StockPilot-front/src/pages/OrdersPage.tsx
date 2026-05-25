@@ -665,7 +665,7 @@ export function OrdersPage() {
               />
             </label>
 
-            <label className="field-block" style={{ minWidth: 170 }}>
+            <label className="field-block orders-priority-filter">
               <span>Priorité</span>
               <select
                 value={activePriorityFilter}

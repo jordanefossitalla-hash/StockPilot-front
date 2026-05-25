@@ -1104,7 +1104,7 @@ export function SalesPage() {
                 ))}
               </div>
 
-              <div className="client-form-actions" style={{ justifyContent: "space-between" }}>
+              <div className="client-form-actions sales-pagination-actions">
                 <button
                   type="button"
                   className="btn btn-ghost"

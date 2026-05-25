@@ -1,0 +1,108 @@
+name: Frontend CD
+
+on:
+  workflow_run:
+    workflows:
+      - Frontend CI
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branche a deployer
+        required: true
+        default: main
+        type: choice
+        options:
+          - main
+          - develop
+      environment:
+        description: Environnement cible
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
+
+concurrency:
+  group: frontend-cd-${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'main' && 'production' || 'staging') }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'develop')) || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'main' && 'production' || 'staging') }}
+    env:
+      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
+      APP_DIR: ${{ vars.VPS_APP_DIR }}
+      REPO_URL: ${{ vars.VPS_REPO_URL }}
+      ENV_FILE_PATH: ${{ vars.FRONTEND_ENV_PATH || '.env.production' }}
+      ENV_FILE_CONTENT: ${{ secrets.FRONTEND_ENV_FILE }}
+
+    steps:
+      - name: Deploy to VPS over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script_stop: true
+          envs: APP_DIR,DEPLOY_BRANCH,ENV_FILE_CONTENT,ENV_FILE_PATH,REPO_URL
+          script: |
+            set -eu
+
+            if [ -z "${APP_DIR:-}" ]; then
+              echo "VPS_APP_DIR is missing. Configure it in GitHub environment variables."
+              exit 1
+            fi
+
+            if [ -z "${REPO_URL:-}" ]; then
+              echo "VPS_REPO_URL is missing. Configure it in GitHub environment variables."
+              exit 1
+            fi
+
+            COMPOSE_CMD="docker compose -f docker-compose.prod.yml --env-file ${ENV_FILE_PATH}"
+
+            diagnostics() {
+              echo "Deployment diagnostics"
+              echo "Current directory: $(pwd)"
+              df -h || true
+              docker system df || true
+              ${COMPOSE_CMD} ps || true
+              ${COMPOSE_CMD} logs --tail=200 || true
+            }
+
+            trap diagnostics ERR
+
+            install -d "$(dirname "$APP_DIR")"
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone --branch "$DEPLOY_BRANCH" "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git fetch --all --prune
+            git checkout "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
+
+            if [ -n "${ENV_FILE_CONTENT:-}" ]; then
+              printf '%s\n' "$ENV_FILE_CONTENT" > "$ENV_FILE_PATH"
+            fi
+
+            if [ ! -f "$ENV_FILE_PATH" ]; then
+              echo "Missing ${ENV_FILE_PATH}. Provide FRONTEND_ENV_FILE or create the file on the VPS."
+              exit 1
+            fi
+
+            ${COMPOSE_CMD} pull || true
+            ${COMPOSE_CMD} build --pull
+            ${COMPOSE_CMD} up -d --remove-orphans
+            docker image prune -af --filter "until=168h" || true
+            docker builder prune -af || true
+            ${COMPOSE_CMD} ps

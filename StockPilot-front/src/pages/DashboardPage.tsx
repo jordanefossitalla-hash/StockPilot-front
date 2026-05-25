@@ -3,6 +3,7 @@ import {
   ArrowUpRight,
   FileDown,
   LoaderCircle,
+  Sparkles,
   ShoppingCart,
   Users,
   Wallet,
@@ -14,6 +15,7 @@ import {
   Area,
   AreaChart,
   Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -26,17 +28,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import {
-  dashboardMetrics,
-  monthlyPerformance,
-  operationsEvolution,
-  stockDistribution,
-} from "../features/dashboard/dashboardData"
 import { type Supplier } from "../features/suppliers/supplierTypes"
 import {
   listClientAccountStatus,
   type ClientAccountStatusItem,
 } from "../services/clientService"
+import {
+  getDashboardOverview,
+  type DashboardOverviewData,
+  type DashboardOverviewGroupBy,
+} from "../services/dashboardService"
 import { getSalesReport, type SalesReportData } from "../services/salesService"
 import { getSupplierReport, listSuppliers, type SupplierReportData } from "../services/supplierService"
 
@@ -133,6 +134,55 @@ function formatSaleStatusLabel(status: "paid" | "partial" | "unpaid" | "cancelle
   }
 
   return "Confirmée"
+}
+
+type DashboardMetricCard = {
+  label: string
+  value: number
+  delta: number
+  variant: "brand" | "success" | "warning" | "danger"
+}
+
+const overviewGroupOptions: Array<{ value: DashboardOverviewGroupBy; label: string }> = [
+  { value: "DAY", label: "Jour" },
+  { value: "WEEK", label: "Semaine" },
+  { value: "MONTH", label: "Mois" },
+]
+
+function mapOverviewStatusLabel(label?: string) {
+  if (label === "PAID") {
+    return "Payée"
+  }
+
+  if (label === "PARTIAL") {
+    return "Partielle"
+  }
+
+  if (label === "CONFIRMED") {
+    return "Confirmée"
+  }
+
+  if (label === "CANCELLED") {
+    return "Annulée"
+  }
+
+  return label || "Inconnu"
+}
+
+function mapStockHealthLabel(label?: string) {
+  if (label === "HEALTHY") {
+    return "Disponible"
+  }
+
+  if (label === "LOW_STOCK") {
+    return "Bas stock"
+  }
+
+  if (label === "OUT_OF_STOCK") {
+    return "Rupture"
+  }
+
+  return label || "Inconnu"
 }
 
 function buildSupplierReportPdf(report: SupplierReportData) {
@@ -790,10 +840,23 @@ function buildSalesReportPdf(report: SalesReportData) {
 function formatMetricValue(label: string, value: number) {
   const normalized = label.toLowerCase()
 
+  if (normalized.includes("marge")) {
+    return formatPercent(value)
+  }
+
+  if (
+    normalized.includes("(nb)") ||
+    normalized.includes("clients") ||
+    normalized.includes("commandes")
+  ) {
+    return numberFormatter.format(value)
+  }
+
   if (
     normalized.includes("ventes") ||
     normalized.includes("revenus") ||
-    normalized.includes("dettes") ||
+    normalized.includes("encaisser") ||
+    normalized.includes("bénéfice") ||
     normalized.includes("benefice")
   ) {
     return moneyFormatter.format(value)
@@ -814,31 +877,31 @@ function getStockSegmentColor(name: string) {
   return "#ef4444"
 }
 
-function formatMonthTick(month: string, isMobile: boolean) {
-  if (!isMobile) {
-    return month
-  }
-
-  return month.slice(0, 3)
-}
-
-function formatMetricLabel(label: string, isMobile: boolean) {
-  const labels: Record<string, string> = {
-    "Benefices(semaine en cours)": "Benefices semaine",
-    "Total ventes (semaine en cours)": "Ventes semaine",
-    "Revenus du jour": "Revenus jour",
-    "Clients (nombre)": "Clients",
-    "Fournisseurs (nombre)": "Fournisseurs",
-    "Dettes clients": "Dette clients",
-    "Dettes fournisseurs": "Dette fournisseurs",
-    "Benefice mensuel": "Benefice mensuel",
+function formatMonthTick(period: string, isMobile: boolean) {
+  const parsed = new Date(period)
+  if (Number.isNaN(parsed.getTime())) {
+    return period
   }
 
   if (isMobile) {
-    return labels[label] ?? label.replace(/\s*\([^)]*\)/g, "").trim()
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+    }).format(parsed)
   }
 
-  return labels[label] ?? label.replace(/\s*\([^)]*\)/g, "").trim()
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "short",
+  }).format(parsed)
+}
+
+function formatMetricLabel(label: string, isMobile: boolean) {
+  if (isMobile) {
+    return label.length > 24 ? `${label.slice(0, 23)}…` : label
+  }
+
+  return label
 }
 
 function getMetricKicker(label: string) {
@@ -905,6 +968,12 @@ export function DashboardPage() {
   const [isGeneratingSalesReport, setIsGeneratingSalesReport] = useState(false)
   const [salesReportError, setSalesReportError] = useState<string | null>(null)
   const [salesReportSuccess, setSalesReportSuccess] = useState<string | null>(null)
+  const [overviewFrom, setOverviewFrom] = useState(formatDateRangeInput(monthStart))
+  const [overviewTo, setOverviewTo] = useState(formatDateRangeInput(today))
+  const [overviewGroupBy, setOverviewGroupBy] = useState<DashboardOverviewGroupBy>("DAY")
+  const [overviewData, setOverviewData] = useState<DashboardOverviewData | null>(null)
+  const [isLoadingOverview, setIsLoadingOverview] = useState(false)
+  const [overviewError, setOverviewError] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -969,6 +1038,49 @@ export function DashboardPage() {
       isMounted = false
     }
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+    void loadOverview()
+
+    async function loadOverview() {
+      setIsLoadingOverview(true)
+      setOverviewError(null)
+
+      try {
+        const result = await getDashboardOverview({
+          from: toStartOfDayIso(overviewFrom),
+          to: toEndOfDayIso(overviewTo),
+          groupBy: overviewGroupBy,
+        })
+
+        if (!isMounted) {
+          return
+        }
+
+        setOverviewData(result)
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setOverviewData(null)
+        setOverviewError(
+          error instanceof Error
+            ? error.message
+            : "Chargement du tableau de bord impossible.",
+        )
+      } finally {
+        if (isMounted) {
+          setIsLoadingOverview(false)
+        }
+      }
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [overviewFrom, overviewTo, overviewGroupBy])
 
   async function handleGenerateSupplierReport() {
     setReportError(null)
@@ -1088,191 +1200,450 @@ export function DashboardPage() {
     }
   }
 
+  const dashboardMetricCards: DashboardMetricCard[] = overviewData
+    ? [
+        {
+          label: "Chiffre d'affaires",
+          value: overviewData.kpis.totalRevenue,
+          delta: 0,
+          variant: "success",
+        },
+        {
+          label: "Montant encaissé",
+          value: overviewData.kpis.collectedRevenue,
+          delta: 0,
+          variant: "brand",
+        },
+        {
+          label: "Reste à encaisser",
+          value: overviewData.kpis.outstandingRevenue,
+          delta: 0,
+          variant: "warning",
+        },
+        {
+          label: "Bénéfice brut",
+          value: overviewData.kpis.grossProfit,
+          delta: 0,
+          variant: "success",
+        },
+        {
+          label: "Taux de marge",
+          value: overviewData.kpis.marginRate,
+          delta: 0,
+          variant: "brand",
+        },
+        {
+          label: "Ventes (nb)",
+          value: overviewData.kpis.salesCount,
+          delta: 0,
+          variant: "brand",
+        },
+        {
+          label: "Clients actifs",
+          value: overviewData.kpis.activeClientsCount,
+          delta: 0,
+          variant: "brand",
+        },
+        {
+          label: "Nouveaux clients",
+          value: overviewData.kpis.newClientsCount,
+          delta: 0,
+          variant: "success",
+        },
+        {
+          label: "Réceptions en attente",
+          value: overviewData.kpis.ordersPendingReception,
+          delta: 0,
+          variant: "warning",
+        },
+        {
+          label: "Commandes à livrer",
+          value: overviewData.kpis.clientOrdersToDeliver,
+          delta: 0,
+          variant: "warning",
+        },
+      ]
+    : []
+
+  const revenueProfitData = overviewData
+    ? Array.from(
+        overviewData.charts.revenueEvolution.reduce(
+          (map, entry) => {
+            const current = map.get(entry.period) ?? {
+              period: entry.period,
+              sales: 0,
+              profit: 0,
+            }
+            current.sales = entry.value
+            map.set(entry.period, current)
+            return map
+          },
+          new Map<string, { period: string; sales: number; profit: number }>(),
+        ),
+      )
+        .map(([period, value]) => {
+          const profitEntry = overviewData.charts.profitEvolution.find((item) => item.period === period)
+          return {
+            ...value,
+            profit: profitEntry?.value ?? 0,
+          }
+        })
+        .sort((a, b) => a.period.localeCompare(b.period))
+    : []
+
+  const cashflowData = overviewData
+    ? Array.from(
+        overviewData.charts.revenueEvolution.reduce(
+          (map, entry) => {
+            const current = map.get(entry.period) ?? {
+              period: entry.period,
+              revenue: 0,
+              collected: 0,
+              outstanding: 0,
+            }
+            current.revenue = entry.value
+            map.set(entry.period, current)
+            return map
+          },
+          new Map<string, { period: string; revenue: number; collected: number; outstanding: number }>(),
+        ),
+      )
+        .map(([period, value]) => {
+          const collected =
+            overviewData.charts.collectionsEvolution.find((item) => item.period === period)?.value ?? 0
+          return {
+            ...value,
+            collected,
+            outstanding: Math.max(0, value.revenue - collected),
+          }
+        })
+        .sort((a, b) => a.period.localeCompare(b.period))
+    : []
+
+  const stockDistributionData = overviewData
+    ? overviewData.charts.stockHealthDistribution.map((entry) => ({
+        name: mapStockHealthLabel(entry.label),
+        value: entry.value,
+      }))
+    : []
+
+  const clientsEvolutionData = overviewData
+    ? overviewData.charts.clientsEvolution
+        .map((entry) => ({
+          period: entry.period,
+          clients: entry.value,
+        }))
+        .sort((a, b) => a.period.localeCompare(b.period))
+    : []
+
+  const salesStatusData = overviewData
+    ? overviewData.charts.salesByStatus.map((entry) => ({
+        status: mapOverviewStatusLabel(entry.label),
+        value: entry.value,
+      }))
+    : []
+
+  const topDebtorsData = overviewData
+    ? overviewData.tops.topDebtors.map((entry) => ({
+        name: entry.name,
+        debt: entry.currentDebt,
+      }))
+    : []
+
+  const topClientsData = overviewData?.tops.topClients ?? []
+
   return (
     <div className="page dashboard-page">
-      <section className="metrics-grid" aria-label="Widgets metiers">
-        {dashboardMetrics.map((metric, index) => (
-          <article
-            key={metric.label}
-            className={`metric-card ${index < 2 ? "metric-card-featured" : ""}`}
-          >
-            <div className="metric-copy">
-              <span className="metric-kicker">{getMetricKicker(metric.label)}</span>
-              <p className="metric-label" title={metric.label}>
-                {formatMetricLabel(metric.label, isMobile)}
-              </p>
-              <p className="metric-value">
-                {formatMetricValue(metric.label, metric.value)}
-              </p>
-            </div>
-            <p
-              className={`metric-delta ${metric.delta >= 0 ? "is-up" : "is-down"}`}
-            >
-              {metric.delta >= 0 ? (
-                <ArrowUpRight size={14} />
-              ) : (
-                <ArrowDownRight size={14} />
-              )}
-              {formatMetricDelta(metric.delta, isMobile)}
-            </p>
-            <span className={`metric-accent accent-${metric.variant}`} />
-          </article>
-        ))}
+      <section className="dashboard-hero" aria-label="Vue synthétique">
+        <div className="dashboard-hero-main">
+          <p className="dashboard-hero-kicker">
+            <Sparkles size={14} />
+            Pilotage intelligent
+          </p>
+          <h1 className="dashboard-hero-title">Tableau de bord commercial</h1>
+          <p className="dashboard-hero-subtitle">
+            Suivez vos revenus, votre rentabilité, vos encaissements et vos clients en un seul espace.
+          </p>
+        </div>
+
+        <div className="dashboard-hero-chips" aria-live="polite">
+          <span className="dashboard-hero-chip">
+            Période: {overviewFrom} au {overviewTo}
+          </span>
+          <span className={`dashboard-hero-chip ${isLoadingOverview ? "is-loading" : "is-ready"}`}>
+            {isLoadingOverview ? "Mise à jour en cours..." : "Données synchronisées"}
+          </span>
+        </div>
+
+        <div className="dashboard-overview-filters" aria-label="Filtres tableau de bord">
+          <div className="dashboard-report-label">
+            <FileDown size={14} />
+            Filtres d'analyse
+          </div>
+
+          <div className="dashboard-overview-filters-grid">
+            <label className="report-date-field" htmlFor="overviewFromDate">
+              <span>Du</span>
+              <input
+                id="overviewFromDate"
+                type="date"
+                value={overviewFrom}
+                onChange={(event) => setOverviewFrom(event.target.value)}
+              />
+            </label>
+
+            <label className="report-date-field" htmlFor="overviewToDate">
+              <span>Au</span>
+              <input
+                id="overviewToDate"
+                type="date"
+                value={overviewTo}
+                onChange={(event) => setOverviewTo(event.target.value)}
+              />
+            </label>
+
+            <label className="report-date-field" htmlFor="overviewGroupBy">
+              <span>Regroupement</span>
+              <select
+                id="overviewGroupBy"
+                className="report-select"
+                value={overviewGroupBy}
+                onChange={(event) => setOverviewGroupBy(event.target.value as DashboardOverviewGroupBy)}
+              >
+                {overviewGroupOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {overviewError ? (
+          <p className="dashboard-report-message is-error">{overviewError}</p>
+        ) : null}
       </section>
 
-      <section className="dashboard-layout" aria-label="Graphiques principaux">
+      <section className="dashboard-section" aria-label="Widgets metiers">
+        <div className="dashboard-section-head">
+          <h2>Indicateurs clés</h2>
+          <p>10 KPI actualisés selon la période sélectionnée</p>
+        </div>
+
+        <div className="metrics-grid">
+          {dashboardMetricCards.map((metric) => (
+            <article
+              key={metric.label}
+              className="metric-card"
+            >
+              <div className="metric-copy">
+                <div className="metric-kicker-row">
+                  <span className={`metric-dot accent-${metric.variant}`} aria-hidden="true" />
+                  <span className="metric-kicker">{getMetricKicker(metric.label)}</span>
+                </div>
+                <p className="metric-label" title={metric.label}>
+                  {formatMetricLabel(metric.label, isMobile)}
+                </p>
+                <p className="metric-value">
+                  {formatMetricValue(metric.label, metric.value)}
+                </p>
+              </div>
+              <p className={`metric-delta ${metric.delta >= 0 ? "is-up" : "is-down"}`}>
+                {metric.delta === 0 ? (
+                  <>
+                    <ArrowUpRight size={14} />
+                    {isLoadingOverview ? "Mise à jour..." : "Valeur période"}
+                  </>
+                ) : (
+                  <>
+                    {metric.delta >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                    {formatMetricDelta(metric.delta, isMobile)}
+                  </>
+                )}
+              </p>
+              <span className={`metric-accent accent-${metric.variant}`} />
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="dashboard-section" aria-label="Graphiques principaux">
+        <div className="dashboard-section-head">
+          <h2>Analytique visuelle</h2>
+          <p>Vue complète du chiffre d'affaires, des statuts de ventes et du risque client</p>
+        </div>
+
+        <div className="dashboard-layout">
         <article className="chart-card chart-card-wide">
-          <div className="chart-title-wrap">
-            <h3>Ventes mensuelles et benefice (evolution)</h3>
-            <p>Comparaison CA et benefice net par mois</p>
+          <div className="chart-title-wrap chart-title-wrap-row">
+            <span className="chart-title-icon" aria-hidden="true">
+              <Wallet size={14} />
+            </span>
+            <h3>Chiffre d'affaires et bénéfice</h3>
+            <p>Évolution de la période sélectionnée</p>
           </div>
           <div className="chart-box">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={monthlyPerformance}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis
-                  dataKey="month"
-                  stroke="var(--color-text-muted)"
-                  tick={{ fontSize: isMobile ? 11 : 12 }}
-                  interval={0}
-                />
-                <YAxis
-                  yAxisId="left"
-                  stroke="var(--color-text-muted)"
-                  tickFormatter={(value) => `${Math.round(value / 1000)}k`}
-                  hide={isMobile}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  stroke="var(--color-text-muted)"
-                  tickFormatter={(value) => `${Math.round(value / 1000)}k`}
-                  hide={isMobile}
-                />
-                <Tooltip
-                  formatter={(value) =>
-                    moneyFormatter.format(Number(value ?? 0))
-                  }
-                  contentStyle={{
-                    background: "var(--color-surface)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "12px",
-                  }}
-                />
-                {!isMobile ? <Legend /> : null}
-                <Bar
-                  yAxisId="left"
-                  dataKey="sales"
-                  name="Ventes"
-                  fill="var(--color-brand)"
-                  radius={[6, 6, 0, 0]}
-                  barSize={isMobile ? 16 : 24}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="profit"
-                  name="Benefice"
-                  stroke="var(--color-success)"
-                  strokeWidth={3}
-                  dot={{ r: 4 }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+            {revenueProfitData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={revenueProfitData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey="period"
+                    stroke="var(--color-text-muted)"
+                    tick={{ fontSize: isMobile ? 11 : 12 }}
+                    tickFormatter={(value) => formatMonthTick(String(value ?? ""), isMobile)}
+                    interval={0}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    stroke="var(--color-text-muted)"
+                    tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+                    hide={isMobile}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    stroke="var(--color-text-muted)"
+                    tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+                    hide={isMobile}
+                  />
+                  <Tooltip
+                    formatter={(value) =>
+                      moneyFormatter.format(Number(value ?? 0))
+                    }
+                    contentStyle={{
+                      background: "var(--color-surface)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "12px",
+                    }}
+                  />
+                  {!isMobile ? <Legend /> : null}
+                  <Bar
+                    yAxisId="left"
+                    dataKey="sales"
+                    name="CA"
+                    fill="var(--color-brand)"
+                    radius={[6, 6, 0, 0]}
+                    barSize={isMobile ? 16 : 24}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="profit"
+                    name="Bénéfice"
+                    stroke="var(--color-success)"
+                    strokeWidth={3}
+                    dot={{ r: 4 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="chart-empty">Aucune donnée disponible pour cette période.</p>
+            )}
           </div>
         </article>
 
         <article className="chart-card chart-card-wide">
-          <div className="chart-title-wrap">
-            <h3>Evolution dette clients/fournisseurs et stock</h3>
-            <p>Suivi des niveaux de risque et de rotation inventaire</p>
+          <div className="chart-title-wrap chart-title-wrap-row">
+            <span className="chart-title-icon" aria-hidden="true">
+              <ArrowUpRight size={14} />
+            </span>
+            <h3>Encaissements et reste à encaisser</h3>
+            <p>Suivi des flux de trésorerie sur la période</p>
           </div>
           <div className="chart-box">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={operationsEvolution}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis
-                  dataKey="month"
-                  stroke="var(--color-text-muted)"
-                  tick={{ fontSize: isMobile ? 11 : 12 }}
-                  interval={0}
-                />
-                <YAxis stroke="var(--color-text-muted)" hide={isMobile} />
-                <Tooltip
-                  formatter={(value, name) => {
-                    const numericValue = Number(value ?? 0)
-                    if (name === "stock" || name === "newClients") {
-                      return numberFormatter.format(numericValue)
-                    }
-                    return moneyFormatter.format(numericValue)
-                  }}
-                  contentStyle={{
-                    background: "var(--color-surface)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "12px",
-                  }}
-                />
-                {!isMobile ? <Legend /> : null}
-                <Area
-                  type="monotone"
-                  dataKey="clientDebt"
-                  name="Dettes clients"
-                  stroke="var(--color-warning)"
-                  fill="var(--color-warning-soft)"
-                  fillOpacity={0.55}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="supplierDebt"
-                  name="Dettes fournisseurs"
-                  stroke="var(--color-danger)"
-                  fill="var(--color-danger-soft)"
-                  fillOpacity={0.45}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="stock"
-                  name="Stock"
-                  stroke="var(--color-brand)"
-                  strokeWidth={isMobile ? 2 : 2.5}
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {cashflowData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={cashflowData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey="period"
+                    stroke="var(--color-text-muted)"
+                    tick={{ fontSize: isMobile ? 11 : 12 }}
+                    tickFormatter={(value) => formatMonthTick(String(value ?? ""), isMobile)}
+                    interval={0}
+                  />
+                  <YAxis stroke="var(--color-text-muted)" hide={isMobile} />
+                  <Tooltip
+                    formatter={(value) => moneyFormatter.format(Number(value ?? 0))}
+                    contentStyle={{
+                      background: "var(--color-surface)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "12px",
+                    }}
+                  />
+                  {!isMobile ? <Legend /> : null}
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    name="CA"
+                    stroke="var(--color-brand)"
+                    fill="var(--color-brand-soft)"
+                    fillOpacity={0.55}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="collected"
+                    name="Encaissé"
+                    stroke="var(--color-success)"
+                    fill="var(--color-success-soft)"
+                    fillOpacity={0.45}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="outstanding"
+                    name="Reste"
+                    stroke="var(--color-warning)"
+                    strokeWidth={isMobile ? 2 : 2.5}
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="chart-empty">Aucune donnée disponible pour cette période.</p>
+            )}
           </div>
         </article>
 
         <article className="chart-card">
-          <div className="chart-title-wrap">
+          <div className="chart-title-wrap chart-title-wrap-row">
+            <span className="chart-title-icon" aria-hidden="true">
+              <ShoppingCart size={14} />
+            </span>
             <h3>Statistiques stock</h3>
-            <p>Repartition produits disponible / alerte / rupture</p>
+            <p>Répartition healthy / alerte / rupture</p>
           </div>
           <div className="chart-box small client-evolution-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={stockDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={isMobile ? 40 : 56}
-                  outerRadius={isMobile ? 68 : 86}
-                  paddingAngle={3}
-                >
-                  {stockDistribution.map((entry) => (
-                    <Cell
-                      key={entry.name}
-                      fill={getStockSegmentColor(entry.name)}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${Number(value ?? 0)}%`} />
-                {!isMobile ? <Legend /> : null}
-              </PieChart>
-            </ResponsiveContainer>
+            {stockDistributionData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stockDistributionData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={isMobile ? 40 : 56}
+                    outerRadius={isMobile ? 68 : 86}
+                    paddingAngle={3}
+                  >
+                    {stockDistributionData.map((entry) => (
+                      <Cell
+                        key={entry.name}
+                        fill={getStockSegmentColor(entry.name)}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => numberFormatter.format(Number(value ?? 0))} />
+                  {!isMobile ? <Legend /> : null}
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="chart-empty">Aucune donnée de stock disponible.</p>
+            )}
           </div>
           {isMobile ? (
             <ul className="chart-mobile-legend" aria-label="Legende statistiques stock">
-              {stockDistribution.map((entry) => (
+              {stockDistributionData.map((entry) => (
                 <li key={entry.name}>
                   <span
                     className="chart-mobile-legend-dot"
@@ -1280,7 +1651,7 @@ export function DashboardPage() {
                     aria-hidden="true"
                   />
                   <span>{entry.name}</span>
-                  <strong>{entry.value}%</strong>
+                  <strong>{entry.value}</strong>
                 </li>
               ))}
             </ul>
@@ -1288,53 +1659,124 @@ export function DashboardPage() {
         </article>
 
         <article className="chart-card">
-          <div className="chart-title-wrap">
-            <h3>Evolution nouveaux clients</h3>
-            <p>Acquisition clients et developpement fournisseurs</p>
+          <div className="chart-title-wrap chart-title-wrap-row">
+            <span className="chart-title-icon" aria-hidden="true">
+              <Users size={14} />
+            </span>
+            <h3>Évolution des nouveaux clients</h3>
+            <p>Suivi des créations clients sur la période</p>
           </div>
           <div className="chart-box small">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={operationsEvolution}
-                margin={{
-                  top: 8,
-                  right: isMobile ? 8 : 16,
-                  left: isMobile ? 2 : 8,
-                  bottom: isMobile ? 36 : 8,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis
-                  dataKey="month"
-                  stroke="var(--color-text-muted)"
-                  tick={{ fontSize: isMobile ? 10 : 12 }}
-                  tickFormatter={(value) => formatMonthTick(String(value ?? ""), isMobile)}
-                  tickMargin={isMobile ? 12 : 6}
-                  height={isMobile ? 52 : 30}
-                  interval={isMobile ? "preserveStartEnd" : 0}
-                  minTickGap={isMobile ? 16 : 8}
-                />
-                <YAxis stroke="var(--color-text-muted)" hide={isMobile} />
-                <Tooltip />
-                {!isMobile ? <Legend /> : null}
-                <Bar
-                  dataKey="newClients"
-                  name="Nouveaux clients"
-                  fill="var(--color-brand)"
-                  radius={[6, 6, 0, 0]}
-                  barSize={isMobile ? 16 : 24}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="suppliers"
-                  name="Fournisseurs actifs"
-                  stroke="var(--color-success)"
-                  strokeWidth={isMobile ? 2 : 2.5}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+            {clientsEvolutionData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={clientsEvolutionData}
+                  margin={{
+                    top: 8,
+                    right: isMobile ? 8 : 16,
+                    left: isMobile ? 2 : 8,
+                    bottom: isMobile ? 36 : 8,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey="period"
+                    stroke="var(--color-text-muted)"
+                    tick={{ fontSize: isMobile ? 10 : 12 }}
+                    tickFormatter={(value) => formatMonthTick(String(value ?? ""), isMobile)}
+                    tickMargin={isMobile ? 12 : 6}
+                    height={isMobile ? 52 : 30}
+                    interval={isMobile ? "preserveStartEnd" : 0}
+                    minTickGap={isMobile ? 16 : 8}
+                  />
+                  <YAxis stroke="var(--color-text-muted)" hide={isMobile} />
+                  <Tooltip formatter={(value) => numberFormatter.format(Number(value ?? 0))} />
+                  <Bar
+                    dataKey="clients"
+                    name="Nouveaux clients"
+                    fill="var(--color-brand)"
+                    radius={[6, 6, 0, 0]}
+                    barSize={isMobile ? 16 : 24}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="chart-empty">Aucune création client sur cette période.</p>
+            )}
+          </div>
+
+          <ul className="dashboard-status-list" aria-label="Répartition des statuts de vente">
+            {salesStatusData.map((item) => (
+              <li key={item.status}>
+                <span>{item.status}</span>
+                <strong>{numberFormatter.format(item.value)}</strong>
+              </li>
+            ))}
+          </ul>
+        </article>
+
+        <article className="chart-card">
+          <div className="chart-title-wrap chart-title-wrap-row">
+            <span className="chart-title-icon" aria-hidden="true">
+              <Users size={14} />
+            </span>
+            <h3>Top clients</h3>
+            <p>Clients les plus actifs sur la période</p>
+          </div>
+          <ul className="dashboard-top-list" aria-label="Top clients">
+            {topClientsData.length > 0 ? (
+              topClientsData.map((item) => (
+                <li key={`${item.clientId}-${item.code}`}>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>{item.code}</small>
+                  </div>
+                  <span>{moneyFormatter.format(item.revenue)}</span>
+                </li>
+              ))
+            ) : (
+              <li>
+                <div>
+                  <strong>Aucune donnée</strong>
+                  <small>Période sélectionnée</small>
+                </div>
+                <span>{moneyFormatter.format(0)}</span>
+              </li>
+            )}
+          </ul>
+        </article>
+
+        <article className="chart-card">
+          <div className="chart-title-wrap chart-title-wrap-row">
+            <span className="chart-title-icon" aria-hidden="true">
+              <Wallet size={14} />
+            </span>
+            <h3>Top débiteurs</h3>
+            <p>Clients avec les dettes les plus élevées</p>
+          </div>
+          <div className="chart-box small">
+            {topDebtorsData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topDebtorsData} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis type="number" stroke="var(--color-text-muted)" hide={isMobile} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={isMobile ? 80 : 108}
+                    tick={{ fontSize: isMobile ? 10 : 11 }}
+                    stroke="var(--color-text-muted)"
+                  />
+                  <Tooltip formatter={(value) => moneyFormatter.format(Number(value ?? 0))} />
+                  <Bar dataKey="debt" name="Dette" fill="var(--color-warning)" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="chart-empty">Aucun débiteur à afficher.</p>
+            )}
           </div>
         </article>
+        </div>
       </section>
 
       <section className="dashboard-reports" aria-label="Rapports PDF">
