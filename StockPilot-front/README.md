@@ -75,8 +75,8 @@ Le frontend est maintenant configure comme Progressive Web App (PWA):
 Comportement actuel:
 
 - le shell applicatif et les assets du build restent disponibles hors ligne apres une premiere visite
-- les appels API ne disposent pas encore d'une file offline ni d'une strategie de resolution de conflits
-- les donnees metier en temps reel restent donc dependantes du reseau
+- la creation et la mise a jour des commandes client peuvent etre mises en file hors ligne puis resynchronisees au retour reseau
+- les autres modules metier (hors commandes) restent majoritairement dependants du reseau en temps reel
 
 ## Structure du projet
 

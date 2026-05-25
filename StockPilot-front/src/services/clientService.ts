@@ -1,5 +1,12 @@
 import axios from "axios"
 import type { Client, ClientStatus } from "../features/clients/clientTypes"
+import {
+  type CachedListEntry,
+  getOfflineActionMessage,
+  isRetriableOfflineError,
+  readJsonStorage,
+  writeJsonStorage,
+} from "./offlineSupport"
 import { useAuthStore } from "../store/authStore"
 
 const apiBaseUrl =
@@ -69,68 +76,12 @@ export type ListClientsResult = {
   }
 }
 
-type CachedClientListEntry = {
-  result: ListClientsResult
-  cachedAt: string
-}
+type CachedClientListEntry = CachedListEntry<ListClientsResult>
 
 const CLIENT_LIST_CACHE_KEY = "clients.list-cache"
 
 function formatClientCode(value: number): string {
   return `CLI-${String(value).padStart(4, "0")}`
-}
-
-function isBrowser() {
-  return typeof window !== "undefined"
-}
-
-function isOnline() {
-  if (!isBrowser()) {
-    return true
-  }
-
-  return window.navigator.onLine
-}
-
-function readJsonStorage<T>(key: string, fallback: T): T {
-  if (!isBrowser()) {
-    return fallback
-  }
-
-  const rawValue = window.localStorage.getItem(key)
-  if (!rawValue) {
-    return fallback
-  }
-
-  try {
-    return JSON.parse(rawValue) as T
-  } catch {
-    return fallback
-  }
-}
-
-function writeJsonStorage(key: string, value: unknown) {
-  if (!isBrowser()) {
-    return
-  }
-
-  window.localStorage.setItem(key, JSON.stringify(value))
-}
-
-function isRetriableOfflineError(error: unknown) {
-  if (!isBrowser()) {
-    return false
-  }
-
-  if (!isOnline()) {
-    return true
-  }
-
-  if (axios.isAxiosError(error)) {
-    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
-  }
-
-  return false
 }
 
 function buildClientQueryKey(params?: {
@@ -390,6 +341,12 @@ export async function createClient(payload: {
 
     return mappedClient
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Création client"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Creation client impossible."), {
       cause: error,
     })
@@ -433,6 +390,12 @@ export async function updateClient(
       balance: updated?.balance ?? payload.initialBalance,
     })
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Modification client"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Modification client impossible."), {
       cause: error,
     })
@@ -467,6 +430,12 @@ export async function deleteClient(clientId: string): Promise<string> {
 
     return deletedId
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Suppression client"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Suppression client impossible."), {
       cause: error,
     })

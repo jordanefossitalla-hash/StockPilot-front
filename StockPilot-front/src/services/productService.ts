@@ -1,4 +1,11 @@
 import axios from "axios"
+import {
+  type CachedListEntry,
+  getOfflineActionMessage,
+  isRetriableOfflineError,
+  readJsonStorage,
+  writeJsonStorage,
+} from "./offlineSupport"
 import { useAuthStore } from "../store/authStore"
 
 const apiBaseUrl =
@@ -114,10 +121,7 @@ export type ListProductsResult = {
   }
 }
 
-type CachedProductListEntry = {
-  result: ListProductsResult
-  cachedAt: string
-}
+type CachedProductListEntry = CachedListEntry<ListProductsResult>
 
 const PRODUCT_LIST_CACHE_KEY = "products.list-cache"
 
@@ -145,59 +149,6 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
-}
-
-function isBrowser() {
-  return typeof window !== "undefined"
-}
-
-function isOnline() {
-  if (!isBrowser()) {
-    return true
-  }
-
-  return window.navigator.onLine
-}
-
-function readJsonStorage<T>(key: string, fallback: T): T {
-  if (!isBrowser()) {
-    return fallback
-  }
-
-  const rawValue = window.localStorage.getItem(key)
-  if (!rawValue) {
-    return fallback
-  }
-
-  try {
-    return JSON.parse(rawValue) as T
-  } catch {
-    return fallback
-  }
-}
-
-function writeJsonStorage(key: string, value: unknown) {
-  if (!isBrowser()) {
-    return
-  }
-
-  window.localStorage.setItem(key, JSON.stringify(value))
-}
-
-function isRetriableOfflineError(error: unknown) {
-  if (!isBrowser()) {
-    return false
-  }
-
-  if (!isOnline()) {
-    return true
-  }
-
-  if (axios.isAxiosError(error)) {
-    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
-  }
-
-  return false
 }
 
 function buildProductQueryKey(params: ListProductsParams = {}) {
@@ -338,6 +289,12 @@ export async function createProduct(payload: CreateProductInput): Promise<Create
 
     return mapBackendProduct(response.data?.data ?? {}, requestBody)
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Création produit"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Création produit impossible."), {
       cause: error,
     })
@@ -401,6 +358,12 @@ export async function updateProduct(
       requestBody,
     )
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Mise à jour produit"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Mise à jour produit impossible."), {
       cause: error,
     })
@@ -417,6 +380,12 @@ export async function deleteProduct(productId: string): Promise<string> {
 
     return response.data?.data?.id ?? productId
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Suppression produit"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Suppression produit impossible."), {
       cause: error,
     })

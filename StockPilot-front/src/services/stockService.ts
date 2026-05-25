@@ -1,4 +1,11 @@
 import axios from "axios"
+import {
+  type CachedListEntry,
+  getOfflineActionMessage,
+  isRetriableOfflineError,
+  readJsonStorage,
+  writeJsonStorage,
+} from "./offlineSupport"
 import { useAuthStore } from "../store/authStore"
 
 const apiBaseUrl =
@@ -78,10 +85,7 @@ export type StockHistoryListResult = {
   }
 }
 
-type CachedStockHistoryEntry = {
-  result: StockHistoryListResult
-  cachedAt: string
-}
+type CachedStockHistoryEntry = CachedListEntry<StockHistoryListResult>
 
 function resolveErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
@@ -111,59 +115,6 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
 
 const STOCK_HISTORY_CACHE_KEY = "stock.history-cache"
 const STOCK_STATUS_CACHE_KEY = "stock.status-cache"
-
-function isBrowser() {
-  return typeof window !== "undefined"
-}
-
-function isOnline() {
-  if (!isBrowser()) {
-    return true
-  }
-
-  return window.navigator.onLine
-}
-
-function readJsonStorage<T>(key: string, fallback: T): T {
-  if (!isBrowser()) {
-    return fallback
-  }
-
-  const rawValue = window.localStorage.getItem(key)
-  if (!rawValue) {
-    return fallback
-  }
-
-  try {
-    return JSON.parse(rawValue) as T
-  } catch {
-    return fallback
-  }
-}
-
-function writeJsonStorage(key: string, value: unknown) {
-  if (!isBrowser()) {
-    return
-  }
-
-  window.localStorage.setItem(key, JSON.stringify(value))
-}
-
-function isRetriableOfflineError(error: unknown) {
-  if (!isBrowser()) {
-    return false
-  }
-
-  if (!isOnline()) {
-    return true
-  }
-
-  if (axios.isAxiosError(error)) {
-    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
-  }
-
-  return false
-}
 
 function buildStockHistoryQueryKey(params?: {
   page?: number
@@ -214,10 +165,7 @@ function getCachedStockHistoryResult(params?: {
   return readCachedStockHistoryLists()[buildStockHistoryQueryKey(params)]?.result ?? null
 }
 
-type CachedStockStatusEntry = {
-  result: StockStatusListResult
-  cachedAt: string
-}
+type CachedStockStatusEntry = CachedListEntry<StockStatusListResult>
 
 function readCachedStockStatusLists() {
   return readJsonStorage<Record<string, CachedStockStatusEntry>>(STOCK_STATUS_CACHE_KEY, {})
@@ -302,6 +250,12 @@ export async function createStockEntry(payload: {
 
     return response.data?.data?.id
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Entrée stock"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Entrée stock impossible."), {
       cause: error,
     })
@@ -332,6 +286,12 @@ export async function createStockExit(payload: {
 
     return response.data?.data?.id
   } catch (error) {
+    if (isRetriableOfflineError(error)) {
+      throw new Error(getOfflineActionMessage("Sortie stock"), {
+        cause: error,
+      })
+    }
+
     throw new Error(resolveErrorMessage(error, "Sortie stock impossible."), {
       cause: error,
     })
