@@ -39,6 +39,7 @@ jobs:
     env:
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
       APP_DIR: ${{ vars.VPS_APP_DIR }}
+      PROJECT_DIR: ${{ vars.FRONTEND_PROJECT_DIR || 'StockPilot-front' }}
       REPO_URL: ${{ vars.VPS_REPO_URL }}
       ENV_FILE_PATH: ${{ vars.FRONTEND_ENV_PATH || '.env.production' }}
       ENV_FILE_CONTENT: ${{ secrets.FRONTEND_ENV_FILE }}
@@ -53,7 +54,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT || '22' }}
           script_stop: true
-          envs: APP_DIR,DEPLOY_BRANCH,ENV_FILE_CONTENT,ENV_FILE_PATH,REPO_URL
+          envs: APP_DIR,DEPLOY_BRANCH,ENV_FILE_CONTENT,ENV_FILE_PATH,PROJECT_DIR,REPO_URL
           script: |
             set -eu
 
@@ -67,15 +68,15 @@ jobs:
               exit 1
             fi
 
-            COMPOSE_CMD="docker compose -f docker-compose.prod.yml --env-file ${ENV_FILE_PATH}"
-
             diagnostics() {
               echo "Deployment diagnostics"
               echo "Current directory: $(pwd)"
               df -h || true
               docker system df || true
-              ${COMPOSE_CMD} ps || true
-              ${COMPOSE_CMD} logs --tail=200 || true
+              if [ -f docker-compose.prod.yml ]; then
+                docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE_PATH}" ps || true
+                docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE_PATH}" logs --tail=200 || true
+              fi
             }
 
             trap diagnostics ERR
@@ -91,6 +92,13 @@ jobs:
             git checkout "$DEPLOY_BRANCH"
             git reset --hard "origin/$DEPLOY_BRANCH"
 
+            DEPLOY_DIR="$APP_DIR"
+            if [ -n "${PROJECT_DIR:-}" ] && [ -d "$APP_DIR/$PROJECT_DIR" ]; then
+              DEPLOY_DIR="$APP_DIR/$PROJECT_DIR"
+            fi
+
+            cd "$DEPLOY_DIR"
+
             if [ -n "${ENV_FILE_CONTENT:-}" ]; then
               printf '%s\n' "$ENV_FILE_CONTENT" > "$ENV_FILE_PATH"
             fi
@@ -100,9 +108,14 @@ jobs:
               exit 1
             fi
 
-            ${COMPOSE_CMD} pull || true
-            ${COMPOSE_CMD} build --pull
-            ${COMPOSE_CMD} up -d --remove-orphans
+            if [ ! -f docker-compose.prod.yml ]; then
+              echo "docker-compose.prod.yml not found in ${DEPLOY_DIR}. Check FRONTEND_PROJECT_DIR."
+              exit 1
+            fi
+
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" pull || true
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" build --pull
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" up -d --remove-orphans
             docker image prune -af --filter "until=168h" || true
             docker builder prune -af || true
-            ${COMPOSE_CMD} ps
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_FILE_PATH" ps
