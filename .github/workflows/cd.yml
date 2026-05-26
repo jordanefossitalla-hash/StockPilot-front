@@ -46,7 +46,7 @@ jobs:
       SSH_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT || '22' }}
       SSH_USER: ${{ secrets.VPS_USER || vars.VPS_USER }}
       SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-      SSH_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+      SSH_PASSWORD: ${{ secrets.VPS_PASSWORD || secrets.VPS_SSH_PASSWORD || secrets.SSH_PASSWORD }}
 
     steps:
       - name: Validate deployment configuration
@@ -75,7 +75,7 @@ jobs:
           fi
 
           if [ -z "${SSH_KEY:-}${SSH_PASSWORD:-}" ]; then
-            echo "Missing SSH credential. Add VPS_PASSWORD or VPS_SSH_KEY in GitHub Environments > production/staging > Secrets."
+            echo "Missing SSH credential. Add VPS_PASSWORD, VPS_SSH_PASSWORD, SSH_PASSWORD or VPS_SSH_KEY in GitHub Environments > production/staging > Secrets."
             exit 1
           fi
 
@@ -170,7 +170,7 @@ jobs:
       SSH_PORT: ${{ secrets.VPS_PORT || vars.VPS_PORT || '22' }}
       SSH_USER: ${{ secrets.VPS_USER || vars.VPS_USER }}
       SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-      SSH_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+      SSH_PASSWORD: ${{ secrets.VPS_PASSWORD || secrets.VPS_SSH_PASSWORD || secrets.SSH_PASSWORD }}
 
     steps:
       - name: Validate deployment configuration
@@ -199,7 +199,7 @@ jobs:
           fi
 
           if [ -z "${SSH_KEY:-}${SSH_PASSWORD:-}" ]; then
-            echo "Missing SSH credential. Add VPS_PASSWORD or VPS_SSH_KEY in GitHub Environments > production/staging > Secrets."
+            echo "Missing SSH credential. Add VPS_PASSWORD, VPS_SSH_PASSWORD, SSH_PASSWORD or VPS_SSH_KEY in GitHub Environments > production/staging > Secrets."
             exit 1
           fi
 
