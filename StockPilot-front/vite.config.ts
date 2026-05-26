@@ -50,7 +50,7 @@ export default defineConfig(({ command }) => {
           globPatterns: isDevServer ? [] : ['**/*.{js,css,html,ico,png,svg,json}'],
           // Manifest icons are auto-included by vite-plugin-pwa; ignore here to avoid duplicate precache entries.
           globIgnores: ['pwa-192x192.png', 'pwa-512x512.png'],
-          navigateFallback: '/offline.html',
+          navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api\//],
           runtimeCaching: [
             {

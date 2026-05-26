@@ -108,6 +108,17 @@
         margin-top: 8px;
       }
     </style>
+    <script>
+      function goHome() {
+        window.location.replace('/')
+      }
+
+      window.addEventListener('online', goHome)
+
+      if (window.navigator.onLine) {
+        window.setTimeout(goHome, 250)
+      }
+    </script>
   </head>
   <body>
     <main class="offline-shell">
@@ -118,7 +129,7 @@
         mais certaines données synchronisées en temps réel ne peuvent pas être chargées pour le moment.
       </p>
       <div class="offline-actions">
-        <button class="offline-btn offline-btn-primary" type="button" onclick="window.location.reload()">
+        <button class="offline-btn offline-btn-primary" type="button" onclick="goHome()">
           Réessayer
         </button>
         <button class="offline-btn offline-btn-secondary" type="button" onclick="window.history.back()">
