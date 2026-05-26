@@ -162,7 +162,7 @@ export function SupplierCreatePage() {
               <span>Solde initial (FCFA)</span>
               <input
                 type="number"
-                step={1000}
+                step={1}
                 placeholder="Ex: 0, 80000 ou -15000"
                 {...register("initialBalance", { valueAsNumber: true })}
               />

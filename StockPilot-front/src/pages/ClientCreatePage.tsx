@@ -146,7 +146,7 @@ export function ClientCreatePage() {
             <span>Solde initial (FCFA)</span>
             <input
               type="number"
-              step={1000}
+              step={1}
               placeholder="Ex: 0, 50000 ou -25000"
               {...register("initialBalance", { valueAsNumber: true })}
             />

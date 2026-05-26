@@ -210,7 +210,7 @@ export function ClientEditPage() {
             <span>Solde initial (FCFA)</span>
             <input
               type="number"
-              step={1000}
+              step={1}
               {...register("initialBalance", { valueAsNumber: true })}
             />
             {errors.initialBalance ? <small>{errors.initialBalance.message}</small> : null}
