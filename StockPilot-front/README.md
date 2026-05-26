@@ -162,4 +162,3 @@ npm run build
 - [ ] Build production OK
 - [ ] Responsive mobile valide sur les pages modifiees
 - [ ] Libelles FR relus (accents, coherence)
-Auteur: Fossi talla jordane 
