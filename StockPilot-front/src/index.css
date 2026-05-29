@@ -4925,3 +4925,102 @@ button {
     padding: 0.8rem;
   }
 }
+
+/* iOS/PWA viewport hardening: prevents Safari chrome and safe areas from hiding content. */
+@supports (height: 100dvh) {
+  body,
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .app-sidebar {
+    height: 100dvh;
+  }
+}
+
+@media (max-width: 1023px) {
+  .app-body {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .app-header {
+    min-height: var(--header-h);
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
+  }
+
+  .app-main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1.35rem);
+    overflow-x: hidden;
+  }
+
+  .bottom-nav {
+    height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+@media (max-width: 640px) {
+  .app-main {
+    padding-inline: max(0.72rem, env(safe-area-inset-left, 0px));
+    padding-top: 0.78rem;
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1.25rem);
+  }
+
+  .page,
+  .client-form-card,
+  .supplier-form-card,
+  .supplier-form-layout,
+  .client-form-grid,
+  .supplier-form-row,
+  .supplier-form-row-identity {
+    min-width: 0;
+  }
+
+  .client-form-card,
+  .supplier-form-card {
+    padding: 0.82rem;
+    border-radius: 14px;
+  }
+
+  .field-block input,
+  .field-block select,
+  .field-block textarea,
+  .search-input,
+  .sales-filter-field input,
+  .products-filter-field select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .field-block textarea {
+    min-height: 110px;
+  }
+
+  .client-form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+    padding-bottom: 0.1rem;
+  }
+
+  .client-form-actions .btn {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 430px) {
+  .app-main {
+    padding-inline: 0.82rem;
+  }
+
+  .page {
+    gap: 0.78rem;
+  }
+}
